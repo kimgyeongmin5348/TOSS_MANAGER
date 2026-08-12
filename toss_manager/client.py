@@ -94,6 +94,25 @@ class TossAPIClient:
     def get_stocks(self, symbols: Iterable[str]) -> list[dict[str, Any]]:
         return self._get("/api/v1/stocks", params={"symbols": self._symbols(symbols)})
 
+    def get_rankings(
+        self, market_country: str = "US", *, count: int = 50
+    ) -> dict[str, Any]:
+        """Return the market-wide realtime trading-volume ranking."""
+        if market_country not in {"US", "KR"}:
+            raise ValueError("market_country must be US or KR")
+        if not 1 <= count <= 100:
+            raise ValueError("count must be between 1 and 100")
+        return self._get(
+            "/api/v1/rankings",
+            params={
+                "type": "MARKET_TRADING_VOLUME",
+                "marketCountry": market_country,
+                "duration": "realtime",
+                "excludeInvestmentCaution": "false",
+                "count": count,
+            },
+        )
+
     def get_candles(
         self,
         symbol: str,
