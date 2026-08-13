@@ -6,7 +6,7 @@ import streamlit as st
 from toss_manager.client import TossAPIClient
 from toss_manager.transform import holdings_frame
 
-from .common import currency
+from .formatting import currency, percentage, percentage_text
 
 
 def load_holdings(
@@ -31,12 +31,14 @@ def render_sidebar(frame: pd.DataFrame) -> None:
         st.sidebar.caption("보유 종목이 없습니다.")
 
     for holding in frame.itertuples():
-        rate = float(holding.profit_loss_rate or 0)
+        rate = percentage(holding.profit_loss_rate)
+        rate_marker = "🔴" if rate > 0 else "🔵" if rate < 0 else "⚪"
         market = "US" if str(holding.currency) == "USD" else "KR"
         quantity = float(holding.quantity or 0)
         quantity_text = f"{quantity:,.4f}".rstrip("0").rstrip(".")
         if st.sidebar.button(
-            f"**{holding.name or holding.symbol}**　{rate:+.2f}%  \n"
+            f"**{holding.name or holding.symbol}**　{rate_marker} "
+            f"{percentage_text(holding.profit_loss_rate)}  \n"
             f"{holding.symbol} · {quantity_text}주 · 평단 "
             f"{currency(float(holding.average_purchase_price or 0), market)}",
             key=f"holding_{market}_{holding.symbol}",

@@ -92,7 +92,7 @@ def main() -> None:
         st.error("보유 종목을 TiDB에 저장하지 못했습니다.")
         return
     render_sidebar(holdings)
-    render_market_view(client, holdings)
+    render_market_view(client, holdings, engine)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.repository import load_saved_portfolio
 
-from .common import currency
+from .formatting import currency, percentage_text
 
 
 def render_saved_view(engine: Engine, user_id: int) -> None:
@@ -32,10 +32,21 @@ def render_saved_view(engine: Engine, user_id: int) -> None:
         display["평균 단가"] = display.apply(
             lambda row: currency(float(row["average_purchase_price"] or 0), "US" if row["currency"] == "USD" else "KR"), axis=1
         )
-        st.dataframe(
-            display[["name", "symbol", "quantity", "현재가", "평균 단가", "profit_loss_rate"]].rename(
-                columns={"name": "종목", "symbol": "심볼", "quantity": "수량", "profit_loss_rate": "수익률"}
+        display["수익률"] = display["profit_loss_rate"].apply(percentage_text)
+        styled = display[["name", "symbol", "quantity", "현재가", "평균 단가", "수익률"]].rename(
+            columns={"name": "종목", "symbol": "심볼", "quantity": "수량"}
+        ).style.map(
+            lambda value: (
+                "color: #e5484d; font-weight: 600"
+                if isinstance(value, str) and value.startswith("+") and value != "+0.00%"
+                else "color: #2864dc; font-weight: 600"
+                if isinstance(value, str) and value.startswith("-")
+                else ""
             ),
+            subset=["수익률"],
+        )
+        st.dataframe(
+            styled,
             use_container_width=True,
             hide_index=True,
         )

@@ -2,6 +2,8 @@
 
 import pandas as pd
 
+from .formatting import currency, percentage, percentage_text
+
 
 PERIODS = {
     "1분": ("1m", None, 120),
@@ -12,10 +14,6 @@ PERIODS = {
     "월": ("1d", "ME", 200),
     "년": ("1d", "YE", 200),
 }
-
-
-def currency(value: float, market: str) -> str:
-    return f"${value:,.2f}" if market == "US" else f"₩{value:,.0f}"
 
 
 def aggregate_candles(frame: pd.DataFrame, rule: str | None) -> pd.DataFrame:

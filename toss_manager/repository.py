@@ -147,6 +147,88 @@ def sync_instruments(engine: Engine, holdings: "pd.DataFrame") -> None:
         )
 
 
+def upsert_candles(
+    engine: Engine,
+    *,
+    symbol: str,
+    market_country: str,
+    stock: dict[str, Any],
+    candles: "pd.DataFrame",
+    adjusted: bool = True,
+) -> None:
+    """Upsert official Toss 1m/1d candles for one instrument."""
+    if candles.empty:
+        return
+    country = market_country.upper()
+    with engine.begin() as connection:
+        instrument_id = connection.execute(
+            text("""SELECT instrument_id FROM instruments
+                    WHERE symbol=:symbol AND market_country=:country
+                    ORDER BY instrument_id LIMIT 1"""),
+            {"symbol": symbol.upper(), "country": country},
+        ).scalar()
+        if instrument_id is None:
+            result = connection.execute(
+                text("""INSERT INTO instruments
+                    (symbol, market, market_country, currency, name, english_name,
+                     isin_code, security_type, status, is_common_share,
+                     shares_outstanding, leverage_factor, list_date, delist_date)
+                    VALUES (:symbol, :market, :country, :currency, :name, :english_name,
+                     :isin_code, :security_type, :status, :is_common_share,
+                     :shares_outstanding, :leverage_factor, :list_date, :delist_date)"""),
+                {
+                    "symbol": symbol.upper(),
+                    "market": stock.get("market") or country,
+                    "country": country,
+                    "currency": stock.get("currency") or ("USD" if country == "US" else "KRW"),
+                    "name": stock.get("name"), "english_name": stock.get("englishName"),
+                    "isin_code": stock.get("isinCode"), "security_type": stock.get("securityType"),
+                    "status": stock.get("status"), "is_common_share": stock.get("isCommonShare"),
+                    "shares_outstanding": stock.get("sharesOutstanding"),
+                    "leverage_factor": stock.get("leverageFactor"),
+                    "list_date": stock.get("listDate"), "delist_date": stock.get("delistDate"),
+                },
+            )
+            instrument_id = result.lastrowid
+        records = candle_records(
+            candles, instrument_id=int(instrument_id), adjusted=adjusted
+        )
+        connection.execute(text("""INSERT INTO candles
+            (instrument_id, interval_code, candle_at, open_price, high_price,
+             low_price, close_price, volume, currency, adjusted)
+            VALUES (:instrument_id, :interval_code, :candle_at, :open_price,
+             :high_price, :low_price, :close_price, :volume, :currency, :adjusted)
+            ON DUPLICATE KEY UPDATE
+             open_price=VALUES(open_price), high_price=VALUES(high_price),
+             low_price=VALUES(low_price), close_price=VALUES(close_price),
+             volume=VALUES(volume), currency=VALUES(currency),
+             adjusted=VALUES(adjusted), updated_at=CURRENT_TIMESTAMP(6)"""), records)
+
+
+def candle_records(
+    candles: "pd.DataFrame", *, instrument_id: int, adjusted: bool
+) -> list[dict[str, Any]]:
+    """Convert candle frames to timezone-naive UTC database records."""
+    records = []
+    for candle in candles.to_dict("records"):
+        timestamp = candle["timestamp"]
+        if getattr(timestamp, "tzinfo", None) is not None:
+            timestamp = timestamp.tz_convert("UTC").tz_localize(None)
+        records.append({
+            "instrument_id": instrument_id,
+            "interval_code": candle["interval"],
+            "candle_at": timestamp,
+            "open_price": _number(candle.get("open_price")),
+            "high_price": _number(candle.get("high_price")),
+            "low_price": _number(candle.get("low_price")),
+            "close_price": _number(candle.get("close_price")),
+            "volume": _number(candle.get("volume")),
+            "currency": candle.get("currency") or "KRW",
+            "adjusted": adjusted,
+        })
+    return records
+
+
 def save_portfolio_snapshot(
     engine: Engine, *, user_id: int, account_seq: int, holdings: "pd.DataFrame"
 ) -> int:

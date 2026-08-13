@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import time
 from typing import Any, Iterable
 
 import requests
@@ -26,18 +27,26 @@ class TossAPIClient:
         # Keep a 60-second margin. Reissuing invalidates the previous token, so cache it.
         if self._access_token and datetime.now(timezone.utc) < self._expires_at:
             return self._access_token
-        response = self.session.post(
-            f"{self.settings.api_base_url}/oauth2/token",
-            data={
-                "grant_type": "client_credentials",
-                "client_id": self.settings.client_id,
-                "client_secret": self.settings.client_secret,
-            },
-            timeout=self.timeout,
-        )
+        try:
+            response = self.session.post(
+                f"{self.settings.api_base_url}/oauth2/token",
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self.settings.client_id,
+                    "client_secret": self.settings.client_secret,
+                },
+                timeout=self.timeout,
+            )
+        except requests.Timeout as exc:
+            raise TossAPIError("토스 API 인증 요청 시간이 초과되었습니다.") from exc
+        except requests.RequestException as exc:
+            raise TossAPIError("토스 API 인증 서버에 연결하지 못했습니다.") from exc
         self._raise_for_status(response)
-        payload = response.json()
-        self._access_token = payload["access_token"]
+        payload = self._json(response)
+        try:
+            self._access_token = payload["access_token"]
+        except (KeyError, TypeError) as exc:
+            raise TossAPIError("토스 API 인증 응답 형식이 올바르지 않습니다.") from exc
         lifetime = max(int(payload.get("expires_in", 3600)) - 60, 1)
         self._expires_at = datetime.now(timezone.utc) + timedelta(seconds=lifetime)
         return self._access_token
@@ -52,14 +61,29 @@ class TossAPIClient:
         headers = {"Authorization": f"Bearer {self._token()}"}
         if account_seq is not None:
             headers["X-Tossinvest-Account"] = str(account_seq)
-        response = self.session.get(
-            f"{self.settings.api_base_url}{path}",
-            params=params,
-            headers=headers,
-            timeout=self.timeout,
-        )
+        try:
+            response = self.session.get(
+                f"{self.settings.api_base_url}{path}",
+                params=params,
+                headers=headers,
+                timeout=self.timeout,
+            )
+        except requests.Timeout as exc:
+            raise TossAPIError("토스 API 조회 요청 시간이 초과되었습니다.") from exc
+        except requests.RequestException as exc:
+            raise TossAPIError("토스 API 서버에 연결하지 못했습니다.") from exc
         self._raise_for_status(response)
-        return response.json().get("result")
+        payload = self._json(response)
+        if not isinstance(payload, dict):
+            raise TossAPIError("토스 API 응답 형식이 올바르지 않습니다.")
+        return payload.get("result")
+
+    @staticmethod
+    def _json(response: requests.Response) -> Any:
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise TossAPIError("토스 API가 올바른 JSON을 반환하지 않았습니다.") from exc
 
     @staticmethod
     def _raise_for_status(response: requests.Response) -> None:
@@ -133,3 +157,53 @@ class TossAPIClient:
         if before:
             params["before"] = before
         return self._get("/api/v1/candles", params=params)
+
+    def get_candle_history(
+        self,
+        symbol: str,
+        *,
+        years: int = 5,
+        interval: str = "1d",
+        adjusted: bool = True,
+        max_pages: int = 12,
+    ) -> dict[str, Any]:
+        """Page backward through official candles and return a deduplicated history."""
+        if interval != "1d":
+            raise ValueError("장기 이력 수집은 일봉만 지원합니다.")
+        if not 1 <= years <= 10:
+            raise ValueError("수집 기간은 1~10년이어야 합니다.")
+        cutoff = datetime.now(timezone.utc) - timedelta(days=round(years * 365.25))
+        before: str | None = None
+        candles_by_timestamp: dict[str, dict[str, Any]] = {}
+
+        for page_number in range(max_pages):
+            payload = self.get_candles(
+                symbol, interval=interval, count=200, before=before, adjusted=adjusted
+            )
+            page = payload.get("candles", []) if payload else []
+            if not page:
+                break
+            for candle in page:
+                timestamp = str(candle.get("timestamp", ""))
+                if timestamp:
+                    candles_by_timestamp[timestamp] = candle
+
+            oldest = min(
+                datetime.fromisoformat(str(candle["timestamp"]).replace("Z", "+00:00"))
+                for candle in page
+            )
+            if oldest.astimezone(timezone.utc) <= cutoff:
+                break
+            next_before = payload.get("nextBefore")
+            if not next_before or next_before == before:
+                break
+            before = next_before
+            if page_number + 1 < max_pages:
+                time.sleep(0.22)
+
+        filtered = [
+            candle for candle in candles_by_timestamp.values()
+            if datetime.fromisoformat(str(candle["timestamp"]).replace("Z", "+00:00")).astimezone(timezone.utc) >= cutoff
+        ]
+        filtered.sort(key=lambda candle: str(candle["timestamp"]))
+        return {"candles": filtered, "years": years}

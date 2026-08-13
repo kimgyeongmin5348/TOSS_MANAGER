@@ -5,11 +5,15 @@ import re
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from sqlalchemy import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.client import TossAPIClient, TossAPIError
 from toss_manager.transform import candles_frame
+from toss_manager.repository import upsert_candles
 
-from .common import PERIODS, aggregate_candles, currency
+from .common import PERIODS, aggregate_candles, currency, percentage, percentage_text
+from .manager import show_manager_dialog
 
 
 def render_stock_detail(
@@ -17,6 +21,7 @@ def render_stock_detail(
     symbol: str,
     market: str,
     holdings: pd.DataFrame,
+    engine: Engine,
     name: str | None = None,
 ) -> None:
     try:
@@ -39,13 +44,36 @@ def render_stock_detail(
         unsafe_allow_html=True,
     )
     st.write("")
+    if st.button("✨ Porto 매니저 분석", use_container_width=True):
+        try:
+            with st.spinner("최근 5년 일봉을 수집하고 분석하고 있습니다..."):
+                analysis_payload = client.get_candle_history(
+                    symbol, interval="1d", years=5
+                )
+            analysis_frame = candles_frame(analysis_payload, symbol, "1d")
+            try:
+                upsert_candles(
+                    engine, symbol=symbol, market_country=market,
+                    stock=stock_info, candles=analysis_frame, adjusted=True,
+                )
+            except SQLAlchemyError:
+                st.warning("5년 일봉 저장에 실패했지만 수집된 데이터로 분석합니다.")
+            show_manager_dialog(name, symbol, analysis_frame)
+        except (TossAPIError, ValueError) as exc:
+            st.error(f"매니저 분석 데이터를 불러오지 못했습니다: {exc}")
     period = st.segmented_control("캔들 주기", list(PERIODS), default="1일")
     api_interval, rule, count = PERIODS[period or "1일"]
     try:
         payload = client.get_candles(symbol, interval=api_interval, count=count)
-        frame = aggregate_candles(
-            candles_frame(payload, symbol, api_interval), rule
-        )
+        raw_frame = candles_frame(payload, symbol, api_interval)
+        try:
+            upsert_candles(
+                engine, symbol=symbol, market_country=market,
+                stock=stock_info, candles=raw_frame, adjusted=True,
+            )
+        except SQLAlchemyError:
+            st.warning("캔들 저장에 실패했지만 최신 차트는 계속 표시합니다.")
+        frame = aggregate_candles(raw_frame, rule)
         if frame.empty:
             st.info("표시할 차트 데이터가 없습니다.")
             return
@@ -55,7 +83,10 @@ def render_stock_detail(
             use_container_width=True,
             config={"displayModeBar": False, "scrollZoom": True},
         )
-        st.caption("차트 위에서 마우스 휠로 확대·축소할 수 있습니다.")
+        st.caption(
+            "마우스 왼쪽 버튼을 누른 채 좌우로 끌어 시점을 이동하고, "
+            "휠로 확대·축소할 수 있습니다."
+        )
         if period in {"5분", "10분", "주", "월", "년"}:
             st.caption(f"공식 {api_interval} 데이터를 {period} 단위로 집계한 차트입니다.")
     except (TossAPIError, ValueError) as exc:
@@ -102,6 +133,8 @@ def _candlestick_figure(
             )
     figure.update_layout(
         height=560,
+        dragmode="pan",
+        hovermode="x unified",
         margin=dict(l=10, r=10, t=25, b=10),
         xaxis_rangeslider_visible=False,
         paper_bgcolor="white",
@@ -111,13 +144,15 @@ def _candlestick_figure(
             gridcolor="#eef0f4",
             tickprefix="$" if market == "US" else "₩",
         ),
-        xaxis=dict(gridcolor="#f3f4f6"),
+        xaxis=dict(gridcolor="#f3f4f6", fixedrange=False),
         showlegend=False,
     )
     return figure
 
 
-def render_market_view(client: TossAPIClient, holdings: pd.DataFrame) -> None:
+def render_market_view(
+    client: TossAPIClient, holdings: pd.DataFrame, engine: Engine
+) -> None:
     market_label = st.segmented_control(
         "시장", ["미장", "국장"], default="미장", key="market_selector"
     )
@@ -151,7 +186,7 @@ def render_market_view(client: TossAPIClient, holdings: pd.DataFrame) -> None:
             st.session_state.pop("selected_symbol", None)
             st.rerun()
         render_stock_detail(
-            client, st.session_state.selected_symbol, market, holdings
+            client, st.session_state.selected_symbol, market, holdings, engine
         )
         return
     _render_rankings(client, market)
@@ -186,7 +221,7 @@ def _render_ranking_row(item: dict, stocks: dict, market: str) -> None:
     symbol = item["symbol"]
     price = item.get("price", {})
     last_price = float(price.get("lastPrice") or 0)
-    rate = float(price.get("changeRate") or 0) * 100
+    rate = percentage(price.get("changeRate"))
     volume = float(item.get("tradingVolume") or 0)
     tone = "negative" if rate < 0 else ""
     name = stocks.get(symbol, {}).get("name", symbol)
@@ -195,7 +230,7 @@ def _render_ranking_row(item: dict, stocks: dict, market: str) -> None:
         f'<div class="rank-row"><span class="rank">{item.get("rank", "")}</span>'
         f'<span><span class="sym">{name}</span><div class="sub">{symbol}</div></span>'
         f'<span class="num">{currency(last_price, market)}</span>'
-        f'<span class="num rate {tone}">{rate:+.2f}%</span>'
+        f'<span class="num rate {tone}">{percentage_text(price.get("changeRate"))}</span>'
         f'<span class="num">{volume:,.0f}주</span></div>',
         unsafe_allow_html=True,
     )

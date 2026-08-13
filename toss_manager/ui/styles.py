@@ -17,7 +17,7 @@ CSS = """<style>
 .rank-row{display:grid;grid-template-columns:38px 1fr 100px 100px 115px;align-items:center;padding:.82rem .4rem;border-bottom:1px solid #f0f2f5;font-size:.82rem}
 .rank-row:last-child{border:0}.rank{color:#9198a5;font-weight:600}.sym{font-weight:700}
 .sub{font-size:.68rem;color:var(--muted);margin-top:.15rem}.num{text-align:right;font-variant-numeric:tabular-nums}
-.rate{color:var(--blue);font-weight:600}.negative{color:var(--red)!important}
+.rate{color:var(--red);font-weight:600}.negative{color:var(--blue)!important}
 .stock-head{display:flex;align-items:center;justify-content:space-between}.stock-head h2{margin:0;font-size:1.55rem}
 .price{font-size:1.5rem;font-weight:700;text-align:right}.empty{padding:3rem;text-align:center;color:var(--muted)}
 .stButton button{width:100%;border-radius:10px}.stTextInput input{border-radius:10px}
@@ -64,6 +64,11 @@ CSS = """<style>
 .auth-brand+[data-testid=stHorizontalBlock] [data-testid=stVerticalBlockBorderWrapper]{background:#fff;border:1px solid var(--line)!important;border-radius:22px!important;box-shadow:0 20px 55px rgba(25,42,75,.08);padding:.55rem}
 .auth-brand+[data-testid=stHorizontalBlock] [data-testid=stFormSubmitButton] button{height:48px;background:var(--blue);color:#fff;border:0;font-weight:700}
 .auth-brand+[data-testid=stHorizontalBlock] [data-testid=stTextInput] input{height:46px;background:#fbfcfe;border-color:#e2e6ed}
+.manager-direction{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem;border:1px solid var(--line);border-radius:14px;background:#fff;margin:.7rem 0 1rem}
+.manager-direction small{color:var(--muted)}.manager-direction b{font-size:1.05rem}
+.manager-up{color:var(--red)!important}.manager-down{color:var(--blue)!important}.manager-flat{color:#727986!important}
+.manager-evidence{display:grid;grid-template-columns:90px 1fr 60px;align-items:center;padding:.72rem .15rem;border-bottom:1px solid var(--line);font-size:.78rem}
+.manager-evidence small{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
 @media(max-width:800px){
   .block-container{padding:3.5rem 1rem 3rem!important}
   .rank-row{grid-template-columns:32px 1fr 80px 80px}.rank-row>:nth-child(4){display:none}
