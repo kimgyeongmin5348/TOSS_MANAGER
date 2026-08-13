@@ -15,6 +15,7 @@ SCHEMA_STATEMENTS = (
       user_id BIGINT NOT NULL AUTO_INCREMENT,
       email VARCHAR(320) NOT NULL,
       display_name VARCHAR(100),
+      password_hash VARCHAR(512),
       timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Seoul',
       base_currency VARCHAR(8) NOT NULL DEFAULT 'KRW',
       created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -106,7 +107,7 @@ SCHEMA_STATEMENTS = (
 )
 
 EXPECTED_COLUMNS = {
-    "app_users": {"user_id", "email"},
+    "app_users": {"user_id", "email", "password_hash"},
     "brokerage_accounts": {"account_id", "user_id", "toss_account_seq"},
     "instruments": {"instrument_id", "symbol", "market"},
     "portfolio_snapshots": {"snapshot_id", "account_id", "captured_at"},
@@ -132,6 +133,13 @@ def initialize_schema(engine: Engine, statements: Iterable[str] = SCHEMA_STATEME
     with engine.begin() as connection:
         for statement in statements:
             connection.execute(text(statement))
+        columns = {
+            column["name"] for column in inspect(connection).get_columns("app_users")
+        }
+        if "password_hash" not in columns:
+            connection.execute(text(
+                "ALTER TABLE app_users ADD COLUMN password_hash VARCHAR(512) NULL AFTER display_name"
+            ))
     validate_schema(engine)
 
 

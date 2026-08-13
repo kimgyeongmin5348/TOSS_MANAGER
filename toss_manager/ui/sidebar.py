@@ -48,6 +48,6 @@ def render_sidebar(frame: pd.DataFrame) -> None:
             st.rerun()
 
     st.sidebar.write("")
-    if st.sidebar.button("연결 해제"):
+    if st.sidebar.button("로그아웃"):
         st.session_state.clear()
         st.rerun()

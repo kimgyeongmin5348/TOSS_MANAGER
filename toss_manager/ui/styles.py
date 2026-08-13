@@ -41,9 +41,33 @@ CSS = """<style>
 .login-card [data-testid=stTextInput] input{height:46px;background:#fbfcfe;border-color:#e2e6ed}
 .brand-story{display:flex;align-items:center;gap:.65rem;margin-top:1.15rem;color:#4f596b;font-size:.76rem}
 .brand-story b{color:var(--ink);font-size:.83rem}.brand-story i{width:1px;height:14px;background:#cfd4dd}
+.auth-brand{display:flex;align-items:center;justify-content:space-between;margin:-1rem 0 4.5rem;color:#98a1b2;font-size:.66rem;letter-spacing:.04em}
+.auth-brand-left{display:flex;align-items:center;gap:.65rem;color:var(--ink);font-size:1.05rem;letter-spacing:-.02em}
+.auth-hero{padding-right:2rem}.auth-kicker{display:inline-flex;align-items:center;gap:.45rem;padding:.48rem .72rem;border-radius:99px;background:#edf3ff;color:var(--blue);font-size:.7rem;font-weight:700;letter-spacing:.04em}
+.auth-kicker span{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+.auth-hero h1{font-size:3.25rem;line-height:1.16;letter-spacing:-.065em;margin:1.25rem 0 1.1rem;color:var(--ink)}
+.auth-hero h1 em{font-style:normal;color:var(--blue)}
+.auth-lead{font-size:.95rem;line-height:1.8;color:var(--muted);margin:0}
+.auth-features{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-top:2rem}
+.auth-features>div{background:#fff;border:1px solid var(--line);border-radius:16px;padding:1rem;min-height:138px}
+.auth-features span{display:grid;place-items:center;width:29px;height:29px;background:#eef3ff;color:var(--blue);border-radius:9px;font-size:.68rem;font-weight:700}
+.auth-features b{display:block;font-size:.78rem;margin:.8rem 0 .35rem}.auth-features p{font-size:.67rem;line-height:1.55;color:var(--muted);margin:0}
+.auth-mode-note{display:flex;align-items:flex-start;gap:1rem;margin-top:1rem;padding:1rem 1.1rem;border-radius:14px;background:#eef3ff;color:#53627b}
+.auth-mode-note b{flex:none;color:#274c94;font-size:.72rem}.auth-mode-note span{font-size:.68rem;line-height:1.55}
+.auth-card-head{display:flex;align-items:center;gap:.85rem;margin:.25rem 0 1.35rem}
+.auth-lock{display:grid;place-items:center;width:44px;height:44px;border-radius:13px;background:#edf3ff;color:var(--blue);font-weight:800}
+.auth-card-head h3{font-size:1.12rem;margin:0;letter-spacing:-.025em}.auth-card-head p{font-size:.7rem;color:var(--muted);margin:.25rem 0 0}
+.auth-divider{display:flex;align-items:center;gap:.7rem;color:#9aa2b0;font-size:.67rem;margin:.85rem 0}.auth-divider:before,.auth-divider:after{content:'';height:1px;background:var(--line);flex:1}
+.auth-safe{display:flex;gap:.65rem;align-items:flex-start;background:#f7f9fc;border-radius:12px;padding:.8rem;margin-top:1rem;color:#687083}
+.auth-safe>span{display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#e9f6ef;color:#17965b;font-size:.65rem;font-weight:800}
+.auth-safe p{font-size:.66rem;line-height:1.5;margin:0}.auth-safe b{color:#465167}
+.auth-brand+[data-testid=stHorizontalBlock] [data-testid=stVerticalBlockBorderWrapper]{background:#fff;border:1px solid var(--line)!important;border-radius:22px!important;box-shadow:0 20px 55px rgba(25,42,75,.08);padding:.55rem}
+.auth-brand+[data-testid=stHorizontalBlock] [data-testid=stFormSubmitButton] button{height:48px;background:var(--blue);color:#fff;border:0;font-weight:700}
+.auth-brand+[data-testid=stHorizontalBlock] [data-testid=stTextInput] input{height:46px;background:#fbfcfe;border-color:#e2e6ed}
 @media(max-width:800px){
   .block-container{padding:3.5rem 1rem 3rem!important}
   .rank-row{grid-template-columns:32px 1fr 80px 80px}.rank-row>:nth-child(4){display:none}
   .login-shell{min-height:auto}.login-title{font-size:2.4rem}.feature-grid{grid-template-columns:1fr}.login-card{margin-top:1rem}
+  .auth-brand{margin:0 0 2rem}.auth-brand>span{display:none}.auth-hero{padding:0}.auth-hero h1{font-size:2.45rem}.auth-lead br{display:none}.auth-features{grid-template-columns:1fr}.auth-mode-note{display:block}.auth-mode-note b{display:block;margin-bottom:.35rem}
 }
 </style>"""

@@ -27,6 +27,7 @@ toss_manager/
 ├── client.py                  # 토스증권 Open API 클라이언트
 ├── config.py                  # 환경변수와 TiDB 연결 설정
 ├── database.py                # TiDB 스키마 생성과 검증
+├── repository.py              # 사용자, 계좌, 종목 upsert
 ├── transform.py               # API 응답을 DataFrame으로 변환
 └── ui/
     ├── connect.py             # API 키 연결 화면
@@ -35,6 +36,17 @@ toss_manager/
     ├── common.py              # 통화 표시와 캔들 집계
     └── styles.py              # Streamlit 공통 스타일
 ```
+
+토스 API 연결이 성공하면 입력한 이메일을 기준으로 `app_users`를 생성하거나 갱신하고,
+조회 가능한 계좌를 `brokerage_accounts`에 저장합니다. 계좌번호는 끝 4자리만 남긴
+마스킹 값으로 저장하며 Client ID와 Client Secret은 데이터베이스에 저장하지 않습니다.
+선택한 계좌의 보유 종목은 조회할 때마다 `instruments`에 upsert됩니다.
+
+Porto 회원가입에는 아이디로 사용할 이메일, 비밀번호, 토스 Open API Client ID와
+Client Secret이 필요합니다. API로 실제 계좌가 확인된 경우에만 가입되며, 비밀번호는
+scrypt 해시만 저장되고 API 키는 DB에 저장되지 않습니다. 일반 로그인에서는 마지막으로 저장된 포트폴리오만
+조회하고, Client ID와 Client Secret을 추가 입력한 세션에서만 토스 실시간 API를
+사용합니다. 실시간 보유 내역은 계좌별로 최대 1분 간격으로 스냅샷에 저장됩니다.
 
 ## ER 다이어그램
 ```mermaid
