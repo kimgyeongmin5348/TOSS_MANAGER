@@ -4,7 +4,39 @@
 
 이 앱은 분석용 예제이며 투자 조언이나 수익을 보장하지 않습니다.
 
-# ER 다이어그램
+## 실행 준비
+
+Python 3.12 이상과 TiDB(MySQL 호환)가 필요합니다. `.env.example`을 참고해 `.env`에
+TiDB 접속 정보를 설정하세요. 전체 `TIDB_DATABASE_URL`을 지정하거나 `DB_HOST`,
+`DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`를 각각 지정할 수 있습니다.
+두 방식이 모두 있으면 `TIDB_DATABASE_URL`이 우선합니다.
+
+```bash
+uv sync
+uv run streamlit run main.py
+```
+
+앱 시작 시 TiDB 연결을 확인하고 아래 ER 다이어그램의 테이블을 자동 생성합니다.
+이미 같은 이름의 테이블이 다른 구조로 존재하면 데이터를 임의 변경하지 않고 오류를 표시합니다.
+
+## 프로젝트 구조
+
+```text
+app.py                         # 앱 시작, DB 연결, 화면 조립
+toss_manager/
+├── client.py                  # 토스증권 Open API 클라이언트
+├── config.py                  # 환경변수와 TiDB 연결 설정
+├── database.py                # TiDB 스키마 생성과 검증
+├── transform.py               # API 응답을 DataFrame으로 변환
+└── ui/
+    ├── connect.py             # API 키 연결 화면
+    ├── sidebar.py             # 계좌 선택과 보유 종목 이동
+    ├── market.py              # 시장 순위, 종목 상세, 캔들 차트
+    ├── common.py              # 통화 표시와 캔들 집계
+    └── styles.py              # Streamlit 공통 스타일
+```
+
+## ER 다이어그램
 ```mermaid
 erDiagram
     APP_USERS {
