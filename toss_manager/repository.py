@@ -296,6 +296,63 @@ def load_saved_portfolio(engine: Engine, user_id: int) -> list[dict[str, Any]]:
         """), {"user_id": user_id}).mappings())
 
 
+def load_saved_candles(
+    engine: Engine, *, user_id: int, symbol: str, interval: str = "1d"
+) -> list[dict[str, Any]]:
+    """Load candles only when the instrument belongs to the user's saved holdings."""
+    with engine.connect() as connection:
+        return list(connection.execute(text("""
+            SELECT c.candle_at AS timestamp, c.interval_code AS `interval`,
+                   c.open_price, c.high_price, c.low_price, c.close_price,
+                   c.volume, c.currency
+            FROM candles c
+            JOIN instruments i ON i.instrument_id=c.instrument_id
+            WHERE i.symbol=:symbol AND c.interval_code=:interval
+              AND EXISTS (
+                SELECT 1 FROM holding_snapshot_items h
+                JOIN portfolio_snapshots ps ON ps.snapshot_id=h.snapshot_id
+                JOIN brokerage_accounts ba ON ba.account_id=ps.account_id
+                WHERE h.instrument_id=i.instrument_id AND ba.user_id=:user_id
+              )
+            ORDER BY c.candle_at
+        """), {
+            "user_id": user_id,
+            "symbol": symbol.upper(),
+            "interval": interval,
+        }).mappings())
+
+
+def latest_candle_at(
+    engine: Engine, *, symbol: str, market_country: str, interval: str = "1d"
+) -> datetime | None:
+    with engine.connect() as connection:
+        return connection.execute(text("""
+            SELECT MAX(c.candle_at) FROM candles c
+            JOIN instruments i ON i.instrument_id=c.instrument_id
+            WHERE i.symbol=:symbol AND i.market_country=:country
+              AND c.interval_code=:interval
+        """), {
+            "symbol": symbol.upper(), "country": market_country.upper(), "interval": interval,
+        }).scalar()
+
+
+def load_candles(
+    engine: Engine, *, symbol: str, market_country: str, interval: str = "1d"
+) -> list[dict[str, Any]]:
+    with engine.connect() as connection:
+        return list(connection.execute(text("""
+            SELECT c.candle_at AS timestamp, c.interval_code AS `interval`,
+                   c.open_price, c.high_price, c.low_price, c.close_price,
+                   c.volume, c.currency
+            FROM candles c JOIN instruments i ON i.instrument_id=c.instrument_id
+            WHERE i.symbol=:symbol AND i.market_country=:country
+              AND c.interval_code=:interval
+            ORDER BY c.candle_at
+        """), {
+            "symbol": symbol.upper(), "country": market_country.upper(), "interval": interval,
+        }).mappings())
+
+
 def _number(value: Any) -> float | None:
     if value is None:
         return None

@@ -10,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.client import TossAPIClient, TossAPIError
 from toss_manager.transform import candles_frame
-from toss_manager.repository import upsert_candles
+from toss_manager.repository import latest_candle_at, load_candles, upsert_candles
 
 from .common import PERIODS, aggregate_candles, currency, percentage, percentage_text
 from .manager import show_manager_dialog
@@ -46,38 +46,37 @@ def render_stock_detail(
     st.write("")
     if st.button("✨ Porto 매니저 분석", use_container_width=True):
         try:
-            with st.spinner("최근 5년 일봉을 수집하고 분석하고 있습니다..."):
-                analysis_payload = client.get_candle_history(
-                    symbol, interval="1d", years=5
+            with st.spinner("저장 이후의 새 일봉을 확인하고 분석하고 있습니다..."):
+                analysis_frame = sync_daily_candles(
+                    client, engine, symbol, market, stock_info
                 )
-            analysis_frame = candles_frame(analysis_payload, symbol, "1d")
-            try:
-                upsert_candles(
-                    engine, symbol=symbol, market_country=market,
-                    stock=stock_info, candles=analysis_frame, adjusted=True,
-                )
-            except SQLAlchemyError:
-                st.warning("5년 일봉 저장에 실패했지만 수집된 데이터로 분석합니다.")
             show_manager_dialog(name, symbol, analysis_frame)
+        except SQLAlchemyError:
+            st.error("저장된 분석 데이터를 불러오지 못했습니다.")
         except (TossAPIError, ValueError) as exc:
             st.error(f"매니저 분석 데이터를 불러오지 못했습니다: {exc}")
     period = st.segmented_control("캔들 주기", list(PERIODS), default="1일")
     api_interval, rule, count = PERIODS[period or "1일"]
     try:
-        payload = client.get_candles(symbol, interval=api_interval, count=count)
-        raw_frame = candles_frame(payload, symbol, api_interval)
-        try:
-            upsert_candles(
-                engine, symbol=symbol, market_country=market,
-                stock=stock_info, candles=raw_frame, adjusted=True,
+        if api_interval == "1d":
+            raw_frame = sync_daily_candles(
+                client, engine, symbol, market, stock_info
             )
-        except SQLAlchemyError:
-            st.warning("캔들 저장에 실패했지만 최신 차트는 계속 표시합니다.")
+        else:
+            payload = client.get_candles(symbol, interval=api_interval, count=count)
+            raw_frame = candles_frame(payload, symbol, api_interval)
+            try:
+                upsert_candles(
+                    engine, symbol=symbol, market_country=market,
+                    stock=stock_info, candles=raw_frame, adjusted=True,
+                )
+            except SQLAlchemyError:
+                st.warning("캔들 저장에 실패했지만 최신 차트는 계속 표시합니다.")
         frame = aggregate_candles(raw_frame, rule)
         if frame.empty:
             st.info("표시할 차트 데이터가 없습니다.")
             return
-        figure = _candlestick_figure(frame, symbol, market, holdings)
+        figure = build_candlestick_figure(frame, symbol, market, holdings)
         st.plotly_chart(
             figure,
             use_container_width=True,
@@ -91,9 +90,44 @@ def render_stock_detail(
             st.caption(f"공식 {api_interval} 데이터를 {period} 단위로 집계한 차트입니다.")
     except (TossAPIError, ValueError) as exc:
         st.error(f"차트 데이터를 불러오지 못했습니다: {exc}")
+    except SQLAlchemyError:
+        st.error("장기 캔들 동기화 또는 조회에 실패했습니다.")
 
 
-def _candlestick_figure(
+def sync_daily_candles(
+    client: TossAPIClient,
+    engine: Engine,
+    symbol: str,
+    market: str,
+    stock_info: dict,
+) -> pd.DataFrame:
+    """Initial five-year backfill, then incremental refresh from the DB boundary."""
+    latest = latest_candle_at(
+        engine, symbol=symbol, market_country=market, interval="1d"
+    )
+    payload = (
+        client.get_candles_since(symbol, since=latest, interval="1d")
+        if latest
+        else client.get_candle_history(symbol, interval="1d", years=5)
+    )
+    incoming = candles_frame(payload, symbol, "1d")
+    upsert_candles(
+        engine, symbol=symbol, market_country=market,
+        stock=stock_info, candles=incoming, adjusted=True,
+    )
+    stored = load_candles(
+        engine, symbol=symbol, market_country=market, interval="1d"
+    )
+    frame = pd.DataFrame(stored)
+    if frame.empty:
+        return incoming
+    frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
+    for column in ["open_price", "high_price", "low_price", "close_price", "volume"]:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    return frame
+
+
+def build_candlestick_figure(
     frame: pd.DataFrame, symbol: str, market: str, holdings: pd.DataFrame
 ) -> go.Figure:
     figure = go.Figure(

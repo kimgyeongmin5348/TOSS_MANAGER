@@ -46,6 +46,18 @@ class ClientErrorTests(unittest.TestCase):
         self.assertEqual(self.client.get_candles.call_count, 2)
         sleep.assert_called_once()
 
+    def test_incremental_candles_stop_at_stored_boundary(self) -> None:
+        now = datetime.now(timezone.utc)
+        boundary = now - timedelta(days=2)
+        self.client.get_candles = Mock(return_value={"candles": [
+            {"timestamp": now.isoformat(), "closePrice": "11"},
+            {"timestamp": boundary.isoformat(), "closePrice": "10"},
+            {"timestamp": (boundary - timedelta(days=1)).isoformat(), "closePrice": "9"},
+        ], "nextBefore": "unused"})
+        result = self.client.get_candles_since("AAPL", since=boundary)
+        self.assertEqual(len(result["candles"]), 2)
+        self.assertEqual(self.client.get_candles.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -207,3 +207,43 @@ class TossAPIClient:
         ]
         filtered.sort(key=lambda candle: str(candle["timestamp"]))
         return {"candles": filtered, "years": years}
+
+    def get_candles_since(
+        self,
+        symbol: str,
+        *,
+        since: datetime,
+        interval: str = "1d",
+        adjusted: bool = True,
+        max_pages: int = 20,
+    ) -> dict[str, Any]:
+        """Fetch newest pages backward until they overlap the last stored candle."""
+        if interval != "1d":
+            raise ValueError("증분 이력 수집은 일봉만 지원합니다.")
+        boundary = since.replace(tzinfo=timezone.utc) if since.tzinfo is None else since.astimezone(timezone.utc)
+        before: str | None = None
+        candles_by_timestamp: dict[str, dict[str, Any]] = {}
+        for page_number in range(max_pages):
+            payload = self.get_candles(
+                symbol, interval=interval, count=200, before=before, adjusted=adjusted
+            )
+            page = payload.get("candles", []) if payload else []
+            if not page:
+                break
+            parsed = [
+                datetime.fromisoformat(str(candle["timestamp"]).replace("Z", "+00:00")).astimezone(timezone.utc)
+                for candle in page
+            ]
+            for candle, timestamp in zip(page, parsed):
+                if timestamp >= boundary:
+                    candles_by_timestamp[str(candle["timestamp"])] = candle
+            if min(parsed) <= boundary:
+                break
+            next_before = payload.get("nextBefore")
+            if not next_before or next_before == before:
+                break
+            before = next_before
+            if page_number + 1 < max_pages:
+                time.sleep(0.22)
+        candles = sorted(candles_by_timestamp.values(), key=lambda item: str(item["timestamp"]))
+        return {"candles": candles, "since": boundary.isoformat()}
