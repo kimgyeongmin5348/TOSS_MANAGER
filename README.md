@@ -48,9 +48,9 @@ TiDB 접속 정보를 설정하세요. 전체 `TIDB_DATABASE_URL`을 지정하�
 SEC_USER_AGENT="Porto contact@example.com"
 ```
 
-### NVIDIA Qwen AI 매니저
+### NVIDIA AI 매니저
 
-NVIDIA NIM의 무료 Qwen 엔드포인트를 사용하려면 NVIDIA Build에서 API Key를 발급받고
+NVIDIA NIM의 무료 AI 엔드포인트를 사용하려면 NVIDIA Build에서 API Key를 발급받고
 아래 한 줄만 `.env` 또는 Streamlit App settings의 Secrets에 추가합니다.
 
 ```dotenv
@@ -59,10 +59,11 @@ NVIDIA_API_KEY="nvapi-..."
 
 모델과 API 주소는 코드 기본값으로 관리합니다.
 
-- 모델: `qwen/qwen3.5-397b-a17b`
+- 기본 모델: `meta/llama-3.1-8b-instruct`
+- 종료 시 보조 모델: `nvidia/nemotron-3-nano-30b-a3b`
 - API: `https://integrate.api.nvidia.com/v1/chat/completions`
 
-키가 설정되면 Porto 매니저 팝업의 `Qwen AI 매니저`에서 현재 기술 신호, 과거 유사
+키가 설정되면 Porto 매니저 팝업의 `NVIDIA AI 매니저`에서 현재 기술 신호, 과거 유사
 신호 통계, 뉴스 요약, 봉 주기와 데이터 기준 시각을 바탕으로 질문할 수 있습니다.
 API Key와 AI 답변은 DB에 저장하지 않으며 답변은 현재 Streamlit 세션에만 유지됩니다.
 429 응답은 `Retry-After`를 따라 한 번만 재시도하고, 확정적 수익 표현·직접 매매 지시·

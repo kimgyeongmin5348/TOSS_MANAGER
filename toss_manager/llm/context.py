@@ -17,6 +17,11 @@ from toss_manager.fundamentals.models import FundamentalResult
 
 SYSTEM_INSTRUCTIONS = (
     "You are Porto Manager, an informational portfolio-analysis assistant.",
+    "Always answer in the same language as the user's question; if the question is Korean, answer only in natural Korean.",
+    "Answer the user's actual question in the first sentence. Do not begin by describing, translating, or enumerating the supplied context.",
+    "Be concise: normally 3 to 6 sentences, using only the most relevant figures and evidence.",
+    "Do not use generic headings such as Symbol Analysis, Data State, Technical Analysis, or Candle Count.",
+    "Explain financial jargon in plain language and clearly separate historical probability from a future prediction.",
     "Use only the supplied structured context and distinguish facts, historical statistics, and uncertainty.",
     "Never claim certainty, guaranteed returns, or legal investor-suitability status.",
     "Do not issue a direct buy/sell command or autonomously create, modify, or cancel an order.",
@@ -195,7 +200,17 @@ def build_llm_messages(context: dict[str, Any], *, user_question: str) -> list[d
         raise ValueError("사용자 질문이 비어 있습니다.")
     system = "\n".join(f"- {instruction}" for instruction in SYSTEM_INSTRUCTIONS)
     user = json.dumps(
-        {"question": question, "context": context},
+        {
+            "question": question,
+            "response_requirements": {
+                "language": "same_as_question",
+                "answer_question_first": True,
+                "do_not_restate_context": True,
+                "maximum_sentences": 6,
+                "tone": "clear, practical, concise",
+            },
+            "context": context,
+        },
         ensure_ascii=False, separators=(",", ":"), default=str,
     )
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]

@@ -122,7 +122,7 @@ class FundamentalsSettings:
 class NvidiaLLMSettings:
     api_key: str
     base_url: str = "https://integrate.api.nvidia.com/v1"
-    model: str = "qwen/qwen3.5-397b-a17b"
+    model: str = "meta/llama-3.1-8b-instruct"
 
     @classmethod
     def from_env(cls) -> "NvidiaLLMSettings":

@@ -1,5 +1,7 @@
 """Database-only portfolio, holdings navigation, and candle view."""
 
+from hashlib import sha256
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import Engine
@@ -7,6 +9,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.repository import load_saved_candles, load_saved_portfolio
 from toss_manager.risk_profile import analyze_portfolio_risk
+from toss_manager.llm import (
+    NvidiaLLMClient,
+    NvidiaLLMError,
+    build_llm_messages,
+    build_portfolio_manager_context,
+)
 
 from .common import aggregate_candles
 from .formatting import currency, percentage_text
@@ -41,7 +49,102 @@ def render_saved_view(engine: Engine, user_id: int) -> None:
             _render_saved_stock(engine, user_id, match.iloc[0], holdings)
             return
     _render_portfolio_table(holdings)
-    _render_risk_context(engine, user_id, holdings)
+    _render_risk_overview(engine, user_id, holdings)
+
+
+def _risk_label(score: int) -> tuple[str, str, str, str]:
+    if score <= 33:
+        return "안정형", "#4e9b82", "#ebf8f3", "천천히 흔들림을 줄이는 편"
+    if score <= 66:
+        return "균형형", "#d18a3d", "#fff6e8", "안정과 수익 기회를 함께 보는 편"
+    return "공격형", "#e35f69", "#fff0f1", "변동성을 감수하고 기회를 보는 편"
+
+
+def _risk_ai_sentence(profile: object, holdings: pd.DataFrame, user_id: int) -> str:
+    """Return one stable sentence; use the LLM only to select a constrained label."""
+    fallback, _, _, _ = _risk_label(profile.score)
+    client = NvidiaLLMClient()
+    if not client.configured:
+        return f"당신은 {fallback} 투자자입니다."
+
+    fingerprint = sha256(
+        f"risk-v1|{user_id}|{profile.score}|{profile.confidence}|{profile.features}".encode("utf-8")
+    ).hexdigest()[:20]
+    cache_key = f"porto_risk_line_{fingerprint}"
+    if cached := st.session_state.get(cache_key):
+        return str(cached)
+
+    context = build_portfolio_manager_context(profile=profile, holdings=holdings)
+    question = (
+        "관찰된 포트폴리오 위험만 기준으로 안정형, 균형형, 공격형 중 하나를 고르세요. "
+        "다른 설명 없이 반드시 '당신은 OOO 투자자입니다.' 한 문장만 한국어로 답하세요."
+    )
+    try:
+        response = client.complete(build_llm_messages(context, user_question=question))
+    except NvidiaLLMError:
+        response = ""
+
+    selected = next((label for label in ("안정형", "균형형", "공격형") if label in response), fallback)
+    sentence = f"당신은 {selected} 투자자입니다."
+    st.session_state[cache_key] = sentence
+    return sentence
+
+
+def _render_risk_overview(engine: Engine, user_id: int, holdings: pd.DataFrame) -> None:
+    """Always-visible visual summary of observed portfolio risk."""
+    try:
+        candle_sets = {}
+        for symbol in holdings["symbol"].astype(str).str.upper().unique():
+            rows = load_saved_candles(engine, user_id=user_id, symbol=symbol, interval="1d")
+            candle_sets[symbol] = pd.DataFrame(rows)
+        profile = analyze_portfolio_risk(holdings, candle_sets)
+    except (SQLAlchemyError, ValueError) as exc:
+        st.error(f"위험도를 계산하지 못했습니다: {exc}")
+        return
+
+    label, accent, tint, description = _risk_label(profile.score)
+    features = profile.features
+    volatility = features.annualized_volatility_pct
+    volatility_text = f"{volatility:.1f}%" if volatility is not None else "표본 부족"
+    volatility_width = min(100, (volatility or 0) / 60 * 100)
+    concentration_width = min(100, features.top1_weight_pct)
+    leverage_width = min(100, features.leveraged_weight_pct)
+
+    st.markdown(
+        """
+        <style>
+        .risk-wrap{padding:20px;border:1px solid #e5e9f0;border-radius:24px;background:#fff;margin:20px 0}
+        .risk-hero{display:flex;align-items:center;gap:18px;padding:17px;border-radius:19px}
+        .risk-ring{width:104px;height:104px;border-radius:50%;display:grid;place-items:center;position:relative;flex:0 0 104px}
+        .risk-ring:after{content:"";position:absolute;inset:10px;border-radius:50%;background:#fff}
+        .risk-ring div{position:relative;z-index:1;text-align:center}.risk-ring b{display:block;font-size:1.4rem}.risk-ring small{color:#858b98}
+        .risk-copy small{font-size:.72rem;font-weight:800;letter-spacing:.08em;color:#858b98}.risk-copy h3{margin:4px 0;font-size:1.45rem}
+        .risk-copy p{margin:0;color:#6d7380;font-size:.78rem}.risk-ai{margin:12px 0;padding:14px 16px;border-radius:16px;
+          background:linear-gradient(135deg,#f7f3ff,#f1f7ff);font-size:1rem;font-weight:900;color:#332b50}
+        .risk-row{display:grid;grid-template-columns:90px 1fr 70px;align-items:center;gap:9px;margin:12px 0;font-size:.75rem;color:#5d6471}
+        .risk-track{height:9px;border-radius:99px;background:#edf0f4;overflow:hidden}.risk-fill{height:100%;border-radius:99px}
+        .risk-value{text-align:right;font-weight:800;color:#303543}.risk-note{font-size:.69rem;color:#858b98;line-height:1.55;margin-top:10px}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"""
+        <div class="risk-wrap">
+          <div class="risk-hero" style="background:{tint}">
+            <div class="risk-ring" style="background:conic-gradient({accent} {profile.score * 3.6}deg,#e6e9ee 0)">
+              <div><b>{profile.score}</b><small>위험 점수</small></div></div>
+            <div class="risk-copy"><small>PORTFOLIO RISK</small><h3 style="color:{accent}">{label}</h3><p>{description}</p></div>
+          </div>
+          <div class="risk-ai">✦ {_risk_ai_sentence(profile, holdings, user_id)}</div>
+          <div class="risk-row"><span>종목 집중도</span><div class="risk-track"><div class="risk-fill" style="width:{concentration_width:.1f}%;background:#d58a47"></div></div><span class="risk-value">{features.top1_weight_pct:.1f}%</span></div>
+          <div class="risk-row"><span>연 변동성</span><div class="risk-track"><div class="risk-fill" style="width:{volatility_width:.1f}%;background:#e06a73"></div></div><span class="risk-value">{volatility_text}</span></div>
+          <div class="risk-row"><span>레버리지</span><div class="risk-track"><div class="risk-fill" style="width:{leverage_width:.1f}%;background:#7f77c8"></div></div><span class="risk-value">{features.leveraged_weight_pct:.1f}%</span></div>
+          <div class="risk-note">데이터 신뢰도 {profile.confidence}/100 · 보유 {features.holdings_count}종목 · 이 결과는 현재 보유 구성에서 관찰된 위험이며 법적 투자성향 진단이 아닙니다.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_risk_context(engine: Engine, user_id: int, holdings: pd.DataFrame) -> None:
