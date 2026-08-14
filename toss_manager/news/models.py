@@ -26,6 +26,13 @@ class NewsSummary:
     article_count: int
     reasons: tuple[str, ...]
     latest_at: datetime | None
+    positive_count: int
+    neutral_count: int
+    negative_count: int
+    excluded_count: int
+    average_relevance: int
+    agreement: int
+    methodology: tuple[str, ...]
 
 
 @dataclass(frozen=True)

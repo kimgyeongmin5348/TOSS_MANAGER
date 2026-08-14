@@ -375,6 +375,45 @@ def load_candles(
         }).mappings())
 
 
+def search_instruments(
+    engine: Engine,
+    *,
+    query: str,
+    market_country: str,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """Search previously discovered instruments by ticker or company name."""
+    normalized = query.strip()
+    if not normalized:
+        return []
+    with engine.connect() as connection:
+        return list(connection.execute(text("""
+            SELECT symbol, market_country, name, english_name
+            FROM instruments
+            WHERE market_country=:country
+              AND (
+                UPPER(symbol)=UPPER(:query)
+                OR name LIKE :contains
+                OR english_name LIKE :contains
+              )
+            ORDER BY
+              CASE
+                WHEN UPPER(symbol)=UPPER(:query) THEN 0
+                WHEN name=:query OR english_name=:query THEN 1
+                WHEN name LIKE :prefix OR english_name LIKE :prefix THEN 2
+                ELSE 3
+              END,
+              COALESCE(name, english_name, symbol)
+            LIMIT :limit
+        """), {
+            "country": market_country.upper(),
+            "query": normalized,
+            "contains": f"%{normalized}%",
+            "prefix": f"{normalized}%",
+            "limit": int(limit),
+        }).mappings())
+
+
 def _number(value: Any) -> float | None:
     if value is None:
         return None

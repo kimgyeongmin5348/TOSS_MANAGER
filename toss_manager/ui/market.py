@@ -11,7 +11,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.client import TossAPIClient, TossAPIError
 from toss_manager.transform import candles_frame
-from toss_manager.repository import candle_coverage, load_candles, upsert_candles
+from toss_manager.repository import (
+    candle_coverage,
+    load_candles,
+    search_instruments,
+    upsert_candles,
+)
 
 from .common import PERIODS, aggregate_candles, currency, percentage, percentage_text
 from .manager import render_manager_launcher
@@ -232,17 +237,46 @@ def render_market_view(
         query_column, button_column = st.columns([5, 1])
         query = query_column.text_input(
             "종목 검색",
-            placeholder="티커 입력 (예: AAPL, TSLA)",
+            placeholder="티커 또는 종목명 (예: BZAI, 블레이즈 홀딩스)",
             label_visibility="collapsed",
         )
         searched = button_column.form_submit_button("검색", use_container_width=True)
     if searched:
-        symbol = query.strip().upper()
-        if not re.fullmatch(r"[A-Z0-9.\-]+", symbol):
-            st.warning("올바른 종목 티커를 입력해 주세요.")
-        else:
+        search_text = query.strip()
+        symbol = search_text.upper()
+        if re.fullmatch(r"[A-Z0-9.\-]+", symbol):
             st.session_state.selected_symbol = symbol
             st.session_state.selected_market = market
+            st.session_state.pop("instrument_search_candidates", None)
+        else:
+            st.session_state.pop("selected_symbol", None)
+            candidates = search_instruments(
+                engine, query=search_text, market_country=market
+            )
+            if not candidates:
+                st.warning(
+                    "저장된 종목에서 이름을 찾지 못했습니다. 처음 한 번은 티커로 "
+                    "조회하면 이후부터 종목명으로 검색할 수 있습니다."
+                )
+            elif len(candidates) == 1:
+                st.session_state.selected_symbol = candidates[0]["symbol"]
+                st.session_state.selected_market = market
+                st.session_state.pop("instrument_search_candidates", None)
+            else:
+                st.session_state.instrument_search_candidates = [dict(item) for item in candidates]
+
+    candidates = st.session_state.get("instrument_search_candidates", [])
+    if candidates and not st.session_state.get("selected_symbol"):
+        labels = {
+            f"{item.get('name') or item.get('english_name') or item['symbol']} · {item['symbol']}": item["symbol"]
+            for item in candidates
+        }
+        selected_candidate = st.selectbox("검색 결과", labels)
+        if st.button("선택한 종목 보기", use_container_width=True):
+            st.session_state.selected_symbol = labels[selected_candidate]
+            st.session_state.selected_market = market
+            st.session_state.pop("instrument_search_candidates", None)
+            st.rerun()
 
     if (
         st.session_state.get("selected_symbol")

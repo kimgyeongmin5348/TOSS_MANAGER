@@ -29,12 +29,12 @@ def _external_id(provider: str, value: str) -> str:
 
 
 class NaverNewsProvider:
-    url = "https://openapi.naver.com/v1/search/news.json"
+    url = "https://naverapihub.apigw.ntruss.com/search/v1/news"
 
     def __init__(self, client_id: str, client_secret: str, *, timeout: float = 10):
         self.headers = {
-            "X-Naver-Client-Id": client_id,
-            "X-Naver-Client-Secret": client_secret,
+            "X-NCP-APIGW-API-KEY-ID": client_id,
+            "X-NCP-APIGW-API-KEY": client_secret,
         }
         self.timeout = timeout
 

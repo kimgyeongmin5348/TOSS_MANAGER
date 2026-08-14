@@ -126,8 +126,19 @@ def show_manager_dialog(
             f"관련 뉴스·공시 {news.article_count}건 · 신뢰도 {news.confidence}점 · "
             f"공급자 {provider_label}"
         )
+        st.caption(
+            f"긍정 {news.positive_count}건 · 중립 {news.neutral_count}건 · "
+            f"부정 {news.negative_count}건 · 관련성 부족 제외 {news.excluded_count}건"
+        )
+        st.caption(
+            f"평균 종목 관련도 {news.average_relevance}% · "
+            f"기사 간 방향 일치도 {news.agreement}%"
+        )
         for reason in news.reasons:
             st.caption(f"• {reason}")
+        with st.expander("뉴스 점수 산정 기준", expanded=False):
+            for explanation in news.methodology:
+                st.caption(f"• {explanation}")
         if news_result.errors:
             st.caption("일부 뉴스 공급자의 최신 조회에 실패해 저장 데이터로 분석했습니다.")
     st.caption(f"분석 캔들 {result.candle_count:,}개 · 기준 시각 {result.analyzed_at}")

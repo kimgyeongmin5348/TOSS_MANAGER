@@ -23,8 +23,10 @@ uv run streamlit run main.py
 
 ### 뉴스 API 설정
 
-1. 네이버 개발자 센터에서 애플리케이션을 만들고 검색 API를 활성화한 뒤
-   `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`을 설정합니다.
+1. NAVER Cloud Platform의 `NAVER API HUB > Application`에서 애플리케이션을 만들고
+   Search API의 뉴스 검색을 활성화합니다. 앱의 `인증 정보`에서 발급되는 Client ID와
+   Client Secret을 `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`에 설정합니다.
+   NCP 계정 관리의 공통 Access Key ID와 Secret Key를 입력하면 안 됩니다.
 2. OpenDART에서 인증키를 발급받아 `OPENDART_API_KEY`를 설정합니다.
 3. Alpha Vantage에서 API 키를 발급받아 `ALPHA_VANTAGE_API_KEY`를 설정합니다.
 4. `NEWS_REFRESH_SECONDS`는 공급자별 재호출 간격이며 최소 30초입니다. 화면 fragment는
@@ -62,6 +64,10 @@ toss_manager/
 조회 가능한 계좌를 `brokerage_accounts`에 저장합니다. 계좌번호는 끝 4자리만 남긴
 마스킹 값으로 저장하며 Client ID와 Client Secret은 데이터베이스에 저장하지 않습니다.
 선택한 계좌의 보유 종목은 조회할 때마다 `instruments`에 upsert됩니다.
+종목 검색창은 티커뿐 아니라 `instruments.name`과 `english_name`도 검색합니다. 토스 Open
+API는 회사명 검색 엔드포인트를 제공하지 않으므로, 처음 발견하는 종목은 티커로 한 번
+조회해야 하며 이후부터 저장된 한글·영문 종목명으로 검색할 수 있습니다. 이름이 비슷한
+종목이 여러 개면 시장이 일치하는 후보를 티커와 함께 선택 목록으로 표시합니다.
 
 Porto 회원가입에는 아이디로 사용할 이메일, 비밀번호, 토스 Open API Client ID와
 Client Secret이 필요합니다. API로 실제 계좌가 확인된 경우에만 가입되며, 비밀번호는
@@ -93,6 +99,13 @@ scrypt 해시만 저장되고 API 키는 DB에 저장되지 않습니다. 일반
 `(provider, external_id, instrument_id)` 기준으로 upsert합니다. Porto 매니저는 현재
 차트 주기에 맞는 시간 구간만 선택해 뉴스 심리와 신뢰도를 기술적 점수와 별도로
 표시합니다. 뉴스 조회 실패는 차트와 기술적 분석을 중단시키지 않습니다.
+
+뉴스 심리는 기사별 50점을 기준으로 실적, 계약, 수주, 승인, 증자, 소송, 리콜 등
+이벤트의 강도에 따라 가감합니다. 이후 종목 직접 관련성, 기사 최신성, 출처 신뢰도로
+가중평균하며 60점 이상은 긍정, 40점 이하는 부정, 그 사이는 중립으로 분류합니다.
+신뢰도는 종목 관련성 40%, 기사 간 방향 일치도 30%, 반영 표본 20%, 공식 공시 10%로
+계산합니다. 제목과 요약에서 해당 종목이 직접 확인되지 않는 간접 언급 기사는 제외하며,
+팝업의 `뉴스 점수 산정 기준`에서 반영·제외 건수와 산식을 확인할 수 있습니다.
 
 API 키 없이 Porto 계정으로만 로그인하면 최신 `portfolio_snapshots`와
 `holding_snapshot_items`에서 보유 종목을 불러오고, 해당 종목의 `candles`를 사용해

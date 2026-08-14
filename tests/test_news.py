@@ -25,6 +25,13 @@ class NewsProviderTests(unittest.TestCase):
         self.assertEqual(articles[0].title, "삼성전자 신규 계약")
         self.assertEqual(articles[0].summary, "반도체 & 공급 계약")
         self.assertEqual(articles[0].published_at.tzinfo, timezone.utc)
+        _, kwargs = get.call_args
+        self.assertEqual(
+            kwargs["headers"]["X-NCP-APIGW-API-KEY-ID"], "id"
+        )
+        self.assertEqual(
+            kwargs["headers"]["X-NCP-APIGW-API-KEY"], "secret"
+        )
 
     @patch("toss_manager.news.providers.requests.get")
     def test_alpha_vantage_keeps_ticker_sentiment(self, get) -> None:
@@ -83,6 +90,42 @@ class NewsSummaryTests(unittest.TestCase):
         result = summarize_news([], period="5분")
         self.assertEqual(result.direction, "정보 없음")
         self.assertEqual(result.confidence, 0)
+
+    def test_unrelated_mentions_are_excluded_and_confidence_is_composite(self) -> None:
+        now = datetime(2026, 8, 14, 10, tzinfo=timezone.utc)
+        articles = [
+            {
+                "title": "SK하이닉스 신규 계약",
+                "summary": "SK하이닉스가 공급 계약을 체결했다.",
+                "source": "뉴스",
+                "content_type": "NEWS",
+                "published_at": now - timedelta(minutes=5),
+                "sentiment_score": None,
+                "relevance_score": None,
+            },
+            {
+                "title": "다른 반도체 회사 소식",
+                "summary": "경쟁사 실적 기사",
+                "source": "뉴스",
+                "content_type": "NEWS",
+                "published_at": now - timedelta(minutes=5),
+                "sentiment_score": None,
+                "relevance_score": None,
+            },
+        ]
+
+        result = summarize_news(
+            articles,
+            period="1분",
+            now=now,
+            symbol="000660",
+            name="SK하이닉스",
+        )
+
+        self.assertEqual(result.article_count, 1)
+        self.assertEqual(result.excluded_count, 1)
+        self.assertEqual(result.positive_count, 1)
+        self.assertLess(result.confidence, 100)
 
 
 if __name__ == "__main__":
