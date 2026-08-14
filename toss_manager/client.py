@@ -1,4 +1,4 @@
-"""Read-only Toss Securities Open API client (spec version 1.2.14)."""
+"""Toss Securities Open API client."""
 
 from __future__ import annotations
 
@@ -78,6 +78,46 @@ class TossAPIClient:
             raise TossAPIError("토스 API 응답 형식이 올바르지 않습니다.")
         return payload.get("result")
 
+    def _mutate(
+        self,
+        method: str,
+        path: str,
+        *,
+        account_seq: int,
+        json: dict[str, Any] | None = None,
+    ) -> Any:
+        """Send an account mutation without automatic retries.
+
+        Conditional orders can create real trades.  In particular, a timeout is
+        deliberately surfaced to the caller instead of being retried blindly.
+        Creation callers should reuse their clientOrderId when they retry.
+        """
+        headers = {
+            "Authorization": f"Bearer {self._token()}",
+            "X-Tossinvest-Account": str(account_seq),
+        }
+        try:
+            response = self.session.request(
+                method,
+                f"{self.settings.api_base_url}{path}",
+                json=json,
+                headers=headers,
+                timeout=self.timeout,
+            )
+        except requests.Timeout as exc:
+            raise TossAPIError(
+                "요청 시간이 초과되었습니다. 실제 접수 여부를 주문 목록에서 먼저 확인해 주세요."
+            ) from exc
+        except requests.RequestException as exc:
+            raise TossAPIError("토스 API 서버에 연결하지 못했습니다.") from exc
+        self._raise_for_status(response)
+        if response.status_code == 204 or not response.content:
+            return None
+        payload = self._json(response)
+        if not isinstance(payload, dict):
+            raise TossAPIError("토스 API 응답 형식이 올바르지 않습니다.")
+        return payload.get("result")
+
     @staticmethod
     def _json(response: requests.Response) -> Any:
         try:
@@ -111,6 +151,56 @@ class TossAPIClient:
     def get_holdings(self, account_seq: int, symbol: str | None = None) -> dict[str, Any]:
         params = {"symbol": symbol.upper()} if symbol else None
         return self._get("/api/v1/holdings", params=params, account_seq=account_seq)
+
+    def get_conditional_orders(
+        self,
+        account_seq: int,
+        *,
+        status: str = "OPEN",
+        symbol: str | None = None,
+        cursor: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        if status not in {"OPEN", "CLOSED"}:
+            raise ValueError("status는 OPEN 또는 CLOSED여야 합니다.")
+        if not 1 <= limit <= 100:
+            raise ValueError("limit은 1~100이어야 합니다.")
+        params: dict[str, Any] = {"status": status, "limit": limit}
+        if symbol:
+            params["symbol"] = symbol.strip().upper()
+        if cursor:
+            params["cursor"] = cursor
+        return self._get(
+            "/api/v1/conditional-orders", params=params, account_seq=account_seq
+        )
+
+    def get_conditional_order(self, account_seq: int, conditional_order_id: str) -> dict[str, Any]:
+        return self._get(
+            f"/api/v1/conditional-orders/{conditional_order_id}",
+            account_seq=account_seq,
+        )
+
+    def create_conditional_order(self, account_seq: int, order: dict[str, Any]) -> dict[str, Any]:
+        return self._mutate(
+            "POST", "/api/v1/conditional-orders", account_seq=account_seq, json=order
+        )
+
+    def modify_conditional_order(
+        self, account_seq: int, conditional_order_id: str, order: dict[str, Any]
+    ) -> dict[str, Any]:
+        return self._mutate(
+            "POST",
+            f"/api/v1/conditional-orders/{conditional_order_id}/modify",
+            account_seq=account_seq,
+            json=order,
+        )
+
+    def cancel_conditional_order(self, account_seq: int, conditional_order_id: str) -> None:
+        self._mutate(
+            "DELETE",
+            f"/api/v1/conditional-orders/{conditional_order_id}",
+            account_seq=account_seq,
+        )
 
     def get_prices(self, symbols: Iterable[str]) -> list[dict[str, Any]]:
         return self._get("/api/v1/prices", params={"symbols": self._symbols(symbols)})

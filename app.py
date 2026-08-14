@@ -13,6 +13,7 @@ from toss_manager.database import check_connection, initialize_schema, make_engi
 from toss_manager.repository import save_portfolio_snapshot, sync_instruments
 from toss_manager.ui.auth_view import render_auth_view
 from toss_manager.ui.connect import render_realtime_connect
+from toss_manager.ui.conditional_orders import render_conditional_orders
 from toss_manager.ui.market import render_market_view
 from toss_manager.ui.saved import render_saved_view
 from toss_manager.ui.sidebar import load_holdings, render_sidebar
@@ -91,8 +92,17 @@ def main() -> None:
     except SQLAlchemyError:
         st.error("보유 종목을 TiDB에 저장하지 못했습니다.")
         return
+    page = st.sidebar.radio(
+        "메뉴",
+        ["시장·차트", "조건주문"],
+        key="main_page",
+        horizontal=True,
+    )
     render_sidebar(holdings)
-    render_market_view(client, holdings, engine)
+    if page == "조건주문":
+        render_conditional_orders(client, account_seq)
+    else:
+        render_market_view(client, holdings, engine)
 
 
 if __name__ == "__main__":

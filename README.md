@@ -1,8 +1,31 @@
 # TOSS_MANAGER
 
-토스증권 Open API 1.2.14, Streamlit, TiDB를 이용한 개인 포트폴리오 분석의 조회 전용 스타터입니다.
+토스증권 Open API, Streamlit, TiDB를 이용한 개인 포트폴리오 분석 앱입니다.
 
 이 앱은 분석용 예제이며 투자 조언이나 수익을 보장하지 않습니다.
+
+### 조건주문
+
+실시간 API 연결 후 사이드바의 `조건주문`에서 진행 중·종료 주문을 조회하고,
+SINGLE/OCO/OTO 조건주문을 미리 볼 수 있습니다. 실제 등록·수정·취소는 기본적으로
+잠겨 있습니다. 충분히 검증한 뒤에만 `.env`에 아래 값을 설정하세요.
+
+```dotenv
+TOSS_LIVE_CONDITIONAL_ORDERS_ENABLED=true
+```
+
+실행 버튼만 눌러서는 주문이 전송되지 않으며 화면에 제시된 최종 확인 문구도 정확히
+입력해야 합니다. 등록 요청의 `clientOrderId`는 같은 화면 세션에서 유지되어 중복
+생성을 방지합니다. 통신 시간 초과 시 자동 재시도하지 않으므로 먼저 주문 목록에서
+접수 여부를 확인해야 합니다. 수정은 기존 주문을 교체하고 새 `conditionalOrderId`를
+발급하므로 이후 조회·수정·취소에는 새 ID를 사용합니다.
+
+- SINGLE: 한 조건을 감시하며 지정가 또는 시장가를 지원합니다.
+- OCO: 두 매도 조건 중 하나가 발동하면 다른 하나가 취소되며 지정가만 지원합니다.
+- OTO: 첫 매수 체결 뒤 두 번째 매도 조건 감시를 시작하며 지정가만 지원합니다.
+
+조건주문 원본은 토스증권 계좌에 저장되며 Porto DB에 복제하지 않습니다. 계좌별
+`X-Tossinvest-Account` 헤더로 조회·변경하므로 현재 선택한 계좌를 반드시 확인하세요.
 
 ## 실행 준비
 
@@ -44,6 +67,7 @@ uv run streamlit run main.py
 app.py                         # 앱 시작, DB 연결, 화면 조립
 toss_manager/
 ├── client.py                  # 토스증권 Open API 클라이언트
+├── conditional_orders.py      # 조건주문 요청 검증과 payload 생성
 ├── config.py                  # 환경변수와 TiDB 연결 설정
 ├── database.py                # TiDB 스키마 생성과 검증
 ├── repository.py              # 사용자, 계좌, 종목 upsert
@@ -56,6 +80,7 @@ toss_manager/
     ├── connect.py             # API 키 연결 화면
     ├── sidebar.py             # 계좌 선택과 보유 종목 이동
     ├── market.py              # 시장 순위, 종목 상세, 캔들 차트
+    ├── conditional_orders.py  # 조건주문 조회·미리보기·2단계 실행 확인
     ├── common.py              # 통화 표시와 캔들 집계
     └── styles.py              # Streamlit 공통 스타일
 ```
