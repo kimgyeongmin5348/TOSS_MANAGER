@@ -9,6 +9,12 @@ from toss_manager.analysis import analyze_candles
 from toss_manager.news import sync_symbol_news
 from toss_manager.news.models import NewsSyncResult
 from toss_manager.ui.disclaimer import render_investment_disclaimer
+from toss_manager.llm import (
+    NvidiaLLMError,
+    NvidiaQwenClient,
+    build_llm_messages,
+    build_symbol_manager_context,
+)
 
 
 @st.fragment(run_every="60s")
@@ -47,6 +53,8 @@ def render_manager_launcher(
             period=period,
             return_threshold=return_threshold,
             news_result=news_result,
+            market_country=market_country,
+            offline=offline,
         )
 
 
@@ -58,6 +66,8 @@ def show_manager_dialog(
     period: str = "1일",
     return_threshold: float = 0.002,
     news_result: NewsSyncResult | None = None,
+    market_country: str = "US",
+    offline: bool = False,
 ) -> None:
     candle_label = f"{period}봉"
     st.markdown(f"### {name}")
@@ -142,4 +152,39 @@ def show_manager_dialog(
                 st.caption(f"• {explanation}")
         if news_result.errors:
             st.caption("일부 뉴스 공급자의 최신 조회에 실패해 저장 데이터로 분석했습니다.")
+
+    st.markdown("#### Qwen AI 매니저")
+    qwen = NvidiaQwenClient()
+    if not qwen.configured:
+        st.caption("NVIDIA_API_KEY를 설정하면 현재 분석을 Qwen이 쉬운 말로 설명합니다.")
+    else:
+        question = st.text_input(
+            "Qwen에게 물어보기",
+            value=f"현재 {name}의 다음 {candle_label} 신호와 가장 중요한 위험을 쉽게 설명해줘.",
+            key=f"qwen_question_{market_country}_{symbol}_{period}",
+        )
+        response_key = f"qwen_answer_{market_country}_{symbol}_{period}"
+        if st.button(
+            "AI 매니저 설명 듣기",
+            use_container_width=True,
+            key=f"qwen_run_{market_country}_{symbol}_{period}",
+        ):
+            context = build_symbol_manager_context(
+                symbol=symbol, name=name, market_country=market_country,
+                period=period, analysis=result, news=news_result,
+                offline=offline, data_as_of=result.analyzed_at,
+            )
+            messages = build_llm_messages(context, user_question=question)
+            try:
+                with st.spinner("Qwen이 분석 근거를 정리하고 있습니다..."):
+                    st.session_state[response_key] = qwen.complete(messages)
+            except NvidiaLLMError as exc:
+                st.error(str(exc))
+        if answer := st.session_state.get(response_key):
+            st.markdown(
+                '<div style="padding:14px;border-radius:14px;background:#f6f8fc;'
+                'border:1px solid #e6e9f0;margin-top:8px"><b>AI 매니저 코멘트</b></div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(answer)
     st.caption(f"분석 캔들 {result.candle_count:,}개 · 기준 시각 {result.analyzed_at}")

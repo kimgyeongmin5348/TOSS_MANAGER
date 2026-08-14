@@ -102,3 +102,29 @@ class NewsSettings:
             alpha_vantage_api_key=_env("ALPHA_VANTAGE_API_KEY"),
             refresh_seconds=refresh_seconds,
         )
+
+
+@dataclass(frozen=True)
+class FundamentalsSettings:
+    opendart_api_key: str = ""
+    sec_user_agent: str = ""
+
+    @classmethod
+    def from_env(cls) -> "FundamentalsSettings":
+        load_dotenv()
+        return cls(
+            opendart_api_key=_env("OPENDART_API_KEY"),
+            sec_user_agent=_env("SEC_USER_AGENT"),
+        )
+
+
+@dataclass(frozen=True)
+class NvidiaLLMSettings:
+    api_key: str
+    base_url: str = "https://integrate.api.nvidia.com/v1"
+    model: str = "qwen/qwen3.5-397b-a17b"
+
+    @classmethod
+    def from_env(cls) -> "NvidiaLLMSettings":
+        load_dotenv()
+        return cls(api_key=_env("NVIDIA_API_KEY"))

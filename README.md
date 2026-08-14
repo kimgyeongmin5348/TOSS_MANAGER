@@ -41,6 +41,33 @@ TiDB 접속 정보를 설정하세요. 전체 `TIDB_DATABASE_URL`을 지정하�
 `ALPHA_VANTAGE_API_KEY`를 설정합니다. 아무 뉴스 키도 설정하지 않으면 기존 기술적
 분석만 실행됩니다. 뉴스 키 역시 DB에 저장하지 않습니다.
 
+미국 SEC 재무제표 조회에는 SEC 접근정책에 맞는 식별용 User-Agent가 필요합니다.
+`.env`의 `SEC_USER_AGENT`에 앱 이름과 운영자 연락 이메일을 입력하세요.
+
+```dotenv
+SEC_USER_AGENT="Porto contact@example.com"
+```
+
+### NVIDIA Qwen AI 매니저
+
+NVIDIA NIM의 무료 Qwen 엔드포인트를 사용하려면 NVIDIA Build에서 API Key를 발급받고
+아래 한 줄만 `.env` 또는 Streamlit App settings의 Secrets에 추가합니다.
+
+```dotenv
+NVIDIA_API_KEY="nvapi-..."
+```
+
+모델과 API 주소는 코드 기본값으로 관리합니다.
+
+- 모델: `qwen/qwen3.5-397b-a17b`
+- API: `https://integrate.api.nvidia.com/v1/chat/completions`
+
+키가 설정되면 Porto 매니저 팝업의 `Qwen AI 매니저`에서 현재 기술 신호, 과거 유사
+신호 통계, 뉴스 요약, 봉 주기와 데이터 기준 시각을 바탕으로 질문할 수 있습니다.
+API Key와 AI 답변은 DB에 저장하지 않으며 답변은 현재 Streamlit 세션에만 유지됩니다.
+429 응답은 `Retry-After`를 따라 한 번만 재시도하고, 확정적 수익 표현·직접 매매 지시·
+자율 주문 실행을 금지하는 시스템 지침을 항상 함께 전달합니다.
+
 ```bash
 uv sync
 uv run streamlit run main.py
@@ -70,6 +97,10 @@ app.py                         # 앱 시작, DB 연결, 화면 조립
 toss_manager/
 ├── client.py                  # 토스증권 Open API 클라이언트
 ├── conditional_orders.py      # 조건주문 요청 검증과 payload 생성
+├── risk_profile.py            # 관찰 포트폴리오 위험 특성과 비식별 LLM 입력
+├── fundamentals/              # OpenDART·SEC 재무제표, 가치지표 계산·저장
+├── llm/
+│   └── context.py             # 매니저 표준 컨텍스트와 provider-neutral messages
 ├── config.py                  # 환경변수와 TiDB 연결 설정
 ├── database.py                # TiDB 스키마 생성과 검증
 ├── repository.py              # 사용자, 계좌, 종목 upsert
@@ -142,6 +173,61 @@ API 키 없이 Porto 계정으로만 로그인하면 최신 `portfolio_snapshots
 오프라인 차트와 Porto 매니저 분석을 제공합니다. 서버에 뉴스 공급자 키가 설정되어
 있으면 토스 API 연결과 무관하게 최신 뉴스도 갱신하며, 그렇지 않으면 저장된 뉴스 또는
 기술적 분석만 사용합니다. 화면에는 마지막 저장 시각을 표시해 실시간 데이터와 구분합니다.
+
+### 관찰 포트폴리오 위험도와 LLM 입력
+
+오프라인 포트폴리오의 `위험 특성 계산`은 현재 보유 비중과 저장 일봉으로 다음 값을
+결정론적으로 계산합니다.
+
+- 최대 종목·상위 3종목 비중, HHI와 유효 종목 수
+- 레버리지·인버스 추정 노출과 외화 노출
+- 공통 일봉이 20개 이상일 때 연환산 변동성, 최대 낙폭, 일간 역사적 VaR 95%
+- 위 항목을 합산한 0~100 관찰 위험 점수와 데이터 신뢰도
+
+이 결과는 사용자의 법적 투자성향이나 금융상품 적합성 판정이 아닙니다. 투자 목적,
+투자기간, 소득·순자산·부채, 생활자금 의존도, 유동성 필요, 감내 가능한 손실과 투자
+경험은 보유 데이터만으로 알 수 없으므로 별도 설문이 필요합니다. LLM 전달용 내부
+데이터는 개인 식별정보 없이 계산 특성, 근거, 미확인 요소와 답변 제한사항만 포함하며
+사용자 화면에는 JSON을 노출하지 않습니다. 현재 코드에서는 LLM을 호출하지 않습니다.
+
+### Porto 매니저 LLM 연결 준비
+
+`toss_manager.llm`은 특정 LLM 회사나 SDK에 종속되지 않습니다. 종목 매니저에는 현재
+봉 주기, 다음 봉 방향 기술 점수, 각 지표 근거, 과거 유사 신호 통계, 뉴스 심리,
+최신 기사와 데이터 기준 시각을 전달합니다. 포트폴리오 매니저에는 보유 비중과 관찰
+위험 특성, 미확인 사용자 요소를 전달합니다.
+
+```python
+from toss_manager.llm import build_llm_messages, build_symbol_manager_context
+
+context = build_symbol_manager_context(
+    symbol=symbol,
+    name=name,
+    market_country=market,
+    period=period,
+    analysis=analysis_result,
+    news=news_result,
+    news_articles=recent_articles,
+    offline=offline,
+)
+messages = build_llm_messages(context, user_question=user_question)
+# 이후 선택한 LLM SDK에 messages를 전달하면 됩니다.
+```
+
+컨텍스트 스키마는 `porto.manager-context.v1`입니다. 뉴스 본문은 신뢰할 수 없는 외부
+텍스트로 표시하고 개수·길이를 제한합니다. 시스템 지침은 확정적 수익 표현, 직접적인
+매수·매도 명령, 법적 투자성향 단정과 자율 주문 실행을 금지합니다. 총 평가금액,
+이메일, 계좌번호, API 키는 전달하지 않으며 생성한 내부 JSON도 UI에 표시하지 않습니다.
+
+### 기업가치·재무제표
+
+종목 상세의 Porto 매니저 버튼 옆 `기업가치·재무제표`에서 국내 종목은 OpenDART,
+미국 종목은 SEC EDGAR의 최신 연간 공식 재무제표를 조회합니다. 토스 현재가와
+발행주식수로 시가총액을 계산하고 공시 순이익·자본·매출을 이용해 PER, PBR, PSR와
+ROE를 계산합니다. 적자 또는 필수 값 누락 시 음수 배수를 표시하지 않고 `NM/자료 없음`으로
+표시합니다. 결과는 `fundamental_snapshots`에 upsert하며 공시 연도·연결/별도 구분,
+원천 링크와 데이터 한계를 함께 보여줍니다. 이 지표는 최신 연간 공시 기준으로 최근
+12개월 실적이나 시장 예상치 기반 지표와 다를 수 있습니다.
 
 ## ER 다이어그램
 ```mermaid
@@ -291,6 +377,28 @@ erDiagram
         DATETIME created_at
     }
 
+    FUNDAMENTAL_SNAPSHOTS {
+        BIGINT fundamental_id PK
+        BIGINT instrument_id FK
+        VARCHAR provider
+        INT fiscal_year
+        VARCHAR statement_type
+        VARCHAR currency
+        DECIMAL revenue
+        DECIMAL operating_income
+        DECIMAL net_income
+        DECIMAL assets
+        DECIMAL liabilities
+        DECIMAL equity
+        DECIMAL operating_cash_flow
+        DECIMAL market_cap
+        DECIMAL per_ratio
+        DECIMAL pbr_ratio
+        DECIMAL psr_ratio
+        DECIMAL roe_pct
+        DATETIME fetched_at
+    }
+
     APP_USERS ||--o{ BROKERAGE_ACCOUNTS : "소유한다"
     BROKERAGE_ACCOUNTS ||--o{ PORTFOLIO_SNAPSHOTS : "수집된다"
     PORTFOLIO_SNAPSHOTS ||--o{ HOLDING_SNAPSHOT_ITEMS : "포함한다"
@@ -299,6 +407,7 @@ erDiagram
     INSTRUMENTS ||--o{ CANDLES : "캔들이 기록된다"
     INSTRUMENTS ||--o{ NEWS_ARTICLES : "뉴스가 연결된다"
     INSTRUMENTS ||--o{ NEWS_COLLECTION_STATE : "수집 상태가 기록된다"
+    INSTRUMENTS ||--o{ FUNDAMENTAL_SNAPSHOTS : "재무·가치지표가 기록된다"
     APP_USERS ||--o{ WATCHLIST_ITEMS : "관심종목을 등록한다"
     INSTRUMENTS ||--o{ WATCHLIST_ITEMS : "관심목록에 포함된다"
 ```

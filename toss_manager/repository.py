@@ -282,7 +282,8 @@ def load_saved_portfolio(engine: Engine, user_id: int) -> list[dict[str, Any]]:
     with engine.connect() as connection:
         return list(connection.execute(text("""
             SELECT ba.account_no_masked, ba.account_type, ps.captured_at,
-                   i.symbol, i.name, i.market_country, h.currency, h.quantity,
+                   i.symbol, i.name, i.market_country, i.security_type,
+                   i.leverage_factor, h.currency, h.quantity,
                    h.last_price, h.average_purchase_price, h.market_value,
                    h.profit_loss, h.profit_loss_rate
             FROM brokerage_accounts ba

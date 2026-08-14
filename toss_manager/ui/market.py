@@ -20,6 +20,7 @@ from toss_manager.repository import (
 
 from .common import PERIODS, aggregate_candles, currency, percentage, percentage_text
 from .manager import render_manager_launcher
+from .fundamentals import render_fundamentals_launcher
 
 
 INTRADAY_RAW_COUNTS = {"1분": 200, "5분": 1_000, "10분": 2_000}
@@ -95,15 +96,23 @@ def render_stock_detail(
         if frame.empty:
             st.info("표시할 차트 데이터가 없습니다.")
             return
-        render_manager_launcher(
-            engine,
-            name=name,
-            symbol=symbol,
-            market_country=market,
-            candles=frame,
-            period=period,
-            return_threshold=RETURN_THRESHOLDS[period],
-        )
+        manager_column, fundamentals_column = st.columns(2)
+        with manager_column:
+            render_manager_launcher(
+                engine,
+                name=name,
+                symbol=symbol,
+                market_country=market,
+                candles=frame,
+                period=period,
+                return_threshold=RETURN_THRESHOLDS[period],
+            )
+        with fundamentals_column:
+            render_fundamentals_launcher(
+                engine, symbol=symbol, name=name, market_country=market,
+                market_price=last_price,
+                shares_outstanding=stock_info.get("sharesOutstanding"),
+            )
         figure = build_candlestick_figure(frame, symbol, market, holdings)
         st.plotly_chart(
             figure,

@@ -6,6 +6,7 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.repository import load_saved_candles, load_saved_portfolio
+from toss_manager.risk_profile import analyze_portfolio_risk
 
 from .common import aggregate_candles
 from .formatting import currency, percentage_text
@@ -40,6 +41,34 @@ def render_saved_view(engine: Engine, user_id: int) -> None:
             _render_saved_stock(engine, user_id, match.iloc[0], holdings)
             return
     _render_portfolio_table(holdings)
+    _render_risk_context(engine, user_id, holdings)
+
+
+def _render_risk_context(engine: Engine, user_id: int, holdings: pd.DataFrame) -> None:
+    st.markdown("### 관찰 포트폴리오 위험도")
+    st.caption(
+        "보유 구성과 저장 일봉에서 계산한 객관적 위험 특성입니다. "
+        "사용자의 법적 투자성향 또는 적합성 판정이 아닙니다."
+    )
+    if not st.button("위험 특성 계산", use_container_width=True):
+        return
+    try:
+        candle_sets = {}
+        for symbol in holdings["symbol"].astype(str).str.upper().unique():
+            rows = load_saved_candles(engine, user_id=user_id, symbol=symbol, interval="1d")
+            candle_sets[symbol] = pd.DataFrame(rows)
+        profile = analyze_portfolio_risk(holdings, candle_sets)
+    except (SQLAlchemyError, ValueError) as exc:
+        st.error(f"위험 특성을 계산하지 못했습니다: {exc}")
+        return
+    st.metric("관찰 위험 점수", f"{profile.score} / 100", profile.level)
+    st.progress(profile.confidence / 100, text=f"데이터 신뢰도 {profile.confidence} / 100")
+    for reason in profile.reasons:
+        st.caption(f"• {reason}")
+    st.warning(
+        "투자 목적, 기간, 재무상황, 생활자금 의존도와 손실 감내 수준은 "
+        "포트폴리오 데이터만으로 알 수 없어 별도 질문이 필요합니다."
+    )
 
 
 def _render_offline_sidebar(holdings: pd.DataFrame) -> None:

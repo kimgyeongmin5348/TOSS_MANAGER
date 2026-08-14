@@ -127,6 +127,20 @@ SCHEMA_STATEMENTS = (
       CONSTRAINT fk_watchlist_user FOREIGN KEY (user_id) REFERENCES app_users(user_id),
       CONSTRAINT fk_watchlist_instrument FOREIGN KEY (instrument_id) REFERENCES instruments(instrument_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
+    """CREATE TABLE IF NOT EXISTS fundamental_snapshots (
+      fundamental_id BIGINT NOT NULL AUTO_INCREMENT, instrument_id BIGINT NOT NULL,
+      provider VARCHAR(32) NOT NULL, fiscal_year INT NOT NULL,
+      statement_type VARCHAR(32) NOT NULL, currency VARCHAR(8) NOT NULL,
+      revenue DECIMAL(30,4), operating_income DECIMAL(30,4), net_income DECIMAL(30,4),
+      assets DECIMAL(30,4), liabilities DECIMAL(30,4), equity DECIMAL(30,4),
+      operating_cash_flow DECIMAL(30,4), market_price DECIMAL(30,10),
+      shares_outstanding DECIMAL(30,4), market_cap DECIMAL(30,4),
+      per_ratio DECIMAL(20,8), pbr_ratio DECIMAL(20,8), psr_ratio DECIMAL(20,8), roe_pct DECIMAL(20,8),
+      source_url TEXT, fetched_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+      PRIMARY KEY (fundamental_id),
+      UNIQUE KEY uq_fundamental_instrument_provider_year (instrument_id, provider, fiscal_year),
+      CONSTRAINT fk_fundamental_instrument FOREIGN KEY (instrument_id) REFERENCES instruments(instrument_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
 )
 
 EXPECTED_COLUMNS = {
@@ -141,6 +155,7 @@ EXPECTED_COLUMNS = {
     "news_collection_state": {"instrument_id", "provider", "last_success_at"},
     "exchange_rates": {"base_currency", "quote_currency", "rate_at"},
     "watchlist_items": {"user_id", "instrument_id"},
+    "fundamental_snapshots": {"fundamental_id", "instrument_id", "provider", "fiscal_year"},
 }
 
 
