@@ -6,11 +6,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.client import TossAPIClient, TossAPIError
 from toss_manager.config import Settings
+from toss_manager.network import is_ip_not_allowed
 from toss_manager.repository import (
     authenticate_user,
     register_user,
     sync_user_and_accounts,
 )
+from toss_manager.ui.connect import render_server_ip_guide
 
 
 def render_auth_view(engine: Engine) -> None:
@@ -63,6 +65,7 @@ def render_auth_view(engine: Engine) -> None:
 @st.dialog("Porto 회원가입")
 def signup_dialog(engine: Engine) -> None:
     st.caption("토스 계좌 확인 후 가입됩니다. API 키는 DB에 저장하지 않습니다.")
+    render_server_ip_guide()
     with st.form("porto_signup"):
         name = st.text_input("표시 이름")
         email = st.text_input("아이디 (이메일)", key="signup_email")
@@ -102,7 +105,10 @@ def signup_dialog(engine: Engine) -> None:
         st.session_state.accounts = accounts
         st.rerun()
     except TossAPIError as exc:
-        st.error(f"토스 Open API 연결에 실패했습니다: {exc}")
+        if is_ip_not_allowed(exc):
+            st.error("위 Porto 서버 IP를 토스 Open API 허용 목록에 등록한 뒤 다시 시도해 주세요.")
+        else:
+            st.error(f"토스 Open API 연결에 실패했습니다: {exc}")
     except ValueError as exc:
         st.error(str(exc))
     except SQLAlchemyError:
