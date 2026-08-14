@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from toss_manager.analysis import analyze_candles
 from toss_manager.news import sync_symbol_news
 from toss_manager.news.models import NewsSyncResult
+from toss_manager.ui.disclaimer import render_investment_disclaimer
 
 
 @st.fragment(run_every="60s")
@@ -64,7 +65,7 @@ def show_manager_dialog(
         f"{symbol} · {candle_label} 기술적 분석 · "
         f"예측 대상: 다음 {candle_label} 종가 방향"
     )
-    st.caption("투자 권유가 아닌 과거 패턴 참고 정보입니다.")
+    render_investment_disclaimer(compact=True)
     try:
         result = analyze_candles(candles, return_threshold=return_threshold)
     except ValueError as exc:

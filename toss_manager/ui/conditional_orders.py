@@ -10,6 +10,7 @@ import streamlit as st
 
 from toss_manager.client import TossAPIClient, TossAPIError
 from toss_manager.conditional_orders import build_condition, build_conditional_order
+from toss_manager.ui.disclaimer import render_investment_disclaimer
 
 
 def _live_enabled() -> bool:
@@ -144,6 +145,7 @@ def _render_editor(client: TossAPIClient, account_seq: int) -> None:
 def render_conditional_orders(client: TossAPIClient, account_seq: int) -> None:
     st.title("조건주문")
     st.caption("토스증권이 가격을 감시하고 조건 충족 시 실제 주문을 생성합니다.")
+    render_investment_disclaimer()
     if not _live_enabled():
         st.info("현재 조회·미리보기 모드입니다. 실주문 등록·수정·취소는 잠겨 있습니다.")
     list_tab, editor_tab = st.tabs(["주문 조회", "등록·수정"])

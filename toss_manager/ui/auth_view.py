@@ -13,6 +13,7 @@ from toss_manager.repository import (
     sync_user_and_accounts,
 )
 from toss_manager.ui.connect import render_server_ip_guide
+from toss_manager.ui.disclaimer import render_investment_disclaimer
 
 
 def render_auth_view(engine: Engine) -> None:
@@ -60,6 +61,7 @@ def render_auth_view(engine: Engine) -> None:
                 signup_dialog(engine)
             st.markdown('''<div class="auth-safe"><span>✓</span><p><b>안전하게 관리해요</b><br>
             비밀번호는 해시로 저장되며 토스 API 키는 데이터베이스에 저장하지 않습니다.</p></div>''', unsafe_allow_html=True)
+            render_investment_disclaimer(compact=True)
 
 
 @st.dialog("Porto 회원가입")
