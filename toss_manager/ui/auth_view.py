@@ -28,6 +28,7 @@ def render_auth_view(engine: Engine) -> None:
           <h1>투자 기록은 차곡차곡,<br><em>판단은 더 선명하게.</em></h1>
           <p class="auth-lead">Porto는 토스증권의 보유 자산과 시장 데이터를 한곳에 모아<br>
           내 투자 현황을 기록하고 탐색할 수 있는 개인 포트폴리오 대시보드입니다.</p>
+          <p class="auth-name-meaning"><b>PORTO</b> = <b>PORT</b>folio + <b>O</b>rganizer · 흩어진 투자 자산과 정보를 체계적으로 정리하는 포트폴리오 매니저</p>
           <div class="auth-features">
             <div><span>01</span><b>포트폴리오 기록</b><p>보유 종목과 수익률을<br>스냅샷으로 저장해요.</p></div>
             <div><span>02</span><b>실시간 시장 탐색</b><p>국내·미국 종목과<br>캔들 흐름을 확인해요.</p></div>

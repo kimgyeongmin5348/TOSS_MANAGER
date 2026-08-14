@@ -53,6 +53,8 @@ CSS = """<style>
 .auth-hero h1{font-size:3.25rem;line-height:1.16;letter-spacing:-.065em;margin:1.25rem 0 1.1rem;color:var(--ink)}
 .auth-hero h1 em{font-style:normal;color:var(--blue)}
 .auth-lead{font-size:.95rem;line-height:1.8;color:var(--muted);margin:0}
+.auth-name-meaning{font-size:.7rem;line-height:1.55;color:#9299a8;margin:.65rem 0 0;letter-spacing:-.015em}
+.auth-name-meaning b{color:#697285;font-weight:800}
 .auth-features{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-top:2rem}
 .auth-features>div{background:#fff;border:1px solid var(--line);border-radius:16px;padding:1rem;min-height:138px}
 .auth-features span{display:grid;place-items:center;width:29px;height:29px;background:#eef3ff;color:var(--blue);border-radius:9px;font-size:.68rem;font-weight:700}
