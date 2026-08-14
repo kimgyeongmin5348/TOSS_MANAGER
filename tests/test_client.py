@@ -58,6 +58,13 @@ class ClientErrorTests(unittest.TestCase):
         self.assertEqual(len(result["candles"]), 2)
         self.assertEqual(self.client.get_candles.call_count, 1)
 
+    def test_rankings_use_toss_trading_amount(self) -> None:
+        self.client._get = Mock(return_value={"rankings": []})
+        self.client.get_rankings("KR", count=50)
+        params = self.client._get.call_args.kwargs["params"]
+        self.assertEqual(params["type"], "TOSS_SECURITIES_TRADING_AMOUNT")
+        self.assertEqual(params["marketCountry"], "KR")
+
     @patch("toss_manager.client.time.sleep")
     def test_candle_window_pages_until_target_and_deduplicates(self, sleep) -> None:
         now = datetime.now(timezone.utc)

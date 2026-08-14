@@ -229,8 +229,8 @@ def render_market_view(
     )
     market = "US" if market_label == "미장" else "KR"
     st.markdown(
-        f'<div class="page-head"><div><h1>{market_label} 거래량 순위</h1>'
-        '<p>실시간 시장 거래량 기준 · 상위 50개 종목</p></div></div>',
+        f'<div class="page-head"><div><h1>{market_label} 거래대금 순위</h1>'
+        '<p>실시간 토스증권 체결 거래대금 기준 · 상위 50개 종목</p></div></div>',
         unsafe_allow_html=True,
     )
     with st.form("search", clear_on_submit=False):
@@ -282,7 +282,7 @@ def render_market_view(
         st.session_state.get("selected_symbol")
         and st.session_state.get("selected_market") == market
     ):
-        if st.button("← 거래량 순위로 돌아가기"):
+        if st.button("← 거래대금 순위로 돌아가기"):
             st.session_state.pop("selected_symbol", None)
             st.rerun()
         render_stock_detail(
@@ -297,11 +297,11 @@ def _render_rankings(client: TossAPIClient, market: str) -> None:
         payload = client.get_rankings(market, count=50)
         rankings = payload.get("rankings", [])
     except (TossAPIError, ValueError) as exc:
-        st.error(f"거래량 순위를 불러오지 못했습니다: {exc}")
+        st.error(f"거래대금 순위를 불러오지 못했습니다: {exc}")
         return
     if not rankings:
         st.markdown(
-            '<div class="card empty">현재 집계된 거래량 순위가 없습니다.</div>',
+            '<div class="card empty">현재 집계된 거래대금 순위가 없습니다.</div>',
             unsafe_allow_html=True,
         )
         return
@@ -322,7 +322,7 @@ def _render_ranking_row(item: dict, stocks: dict, market: str) -> None:
     price = item.get("price", {})
     last_price = float(price.get("lastPrice") or 0)
     rate = percentage(price.get("changeRate"))
-    volume = float(item.get("tradingVolume") or 0)
+    trading_amount = float(item.get("tradingAmount") or 0)
     tone = "negative" if rate < 0 else ""
     name = stocks.get(symbol, {}).get("name", symbol)
     content, action = st.columns([7, 1])
@@ -331,7 +331,7 @@ def _render_ranking_row(item: dict, stocks: dict, market: str) -> None:
         f'<span><span class="sym">{name}</span><div class="sub">{symbol}</div></span>'
         f'<span class="num">{currency(last_price, market)}</span>'
         f'<span class="num rate {tone}">{percentage_text(price.get("changeRate"))}</span>'
-        f'<span class="num">{volume:,.0f}주</span></div>',
+        f'<span class="num">{currency(trading_amount, market)}</span></div>',
         unsafe_allow_html=True,
     )
     if action.button("보기", key=f"rank_{market}_{symbol}"):
