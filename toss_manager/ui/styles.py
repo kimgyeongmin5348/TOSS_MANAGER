@@ -48,13 +48,15 @@ CSS = """<style>
 .brand-story b{color:var(--ink);font-size:.83rem}.brand-story i{width:1px;height:14px;background:#cfd4dd}
 .auth-brand{display:flex;align-items:center;justify-content:space-between;margin:-1rem 0 4.5rem;color:#98a1b2;font-size:.66rem;letter-spacing:.04em}
 .auth-brand-left{display:flex;align-items:center;gap:.65rem;color:var(--ink);font-size:1.05rem;letter-spacing:-.02em}
+.auth-brand-copy{display:flex;flex-direction:column;justify-content:center;line-height:1.05;gap:.27rem}
+.auth-brand-copy>b{font-size:1.05rem;color:var(--ink)}
+.auth-brand-copy small{font-size:.56rem;font-weight:500;letter-spacing:.015em;color:#9aa2b1;white-space:nowrap}
+.auth-brand-copy small strong{font-weight:800;color:#747e90}
 .auth-hero{padding-right:2rem}.auth-kicker{display:inline-flex;align-items:center;gap:.45rem;padding:.48rem .72rem;border-radius:99px;background:#edf3ff;color:var(--blue);font-size:.7rem;font-weight:700;letter-spacing:.04em}
 .auth-kicker span{width:6px;height:6px;border-radius:50%;background:var(--blue)}
 .auth-hero h1{font-size:3.25rem;line-height:1.16;letter-spacing:-.065em;margin:1.25rem 0 1.1rem;color:var(--ink)}
 .auth-hero h1 em{font-style:normal;color:var(--blue)}
 .auth-lead{font-size:.95rem;line-height:1.8;color:var(--muted);margin:0}
-.auth-name-meaning{font-size:.7rem;line-height:1.55;color:#9299a8;margin:.65rem 0 0;letter-spacing:-.015em}
-.auth-name-meaning b{color:#697285;font-weight:800}
 .auth-features{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-top:2rem}
 .auth-features>div{background:#fff;border:1px solid var(--line);border-radius:16px;padding:1rem;min-height:138px}
 .auth-features span{display:grid;place-items:center;width:29px;height:29px;background:#eef3ff;color:var(--blue);border-radius:9px;font-size:.68rem;font-weight:700}
