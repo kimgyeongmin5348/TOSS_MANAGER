@@ -90,6 +90,9 @@ toss_manager/
 토스 API 연결이 성공하면 입력한 이메일을 기준으로 `app_users`를 생성하거나 갱신하고,
 조회 가능한 계좌를 `brokerage_accounts`에 저장합니다. 계좌번호는 끝 4자리만 남긴
 마스킹 값으로 저장하며 Client ID와 Client Secret은 데이터베이스에 저장하지 않습니다.
+토스의 `accountSeq`는 사용자별 로컬 식별자이므로 계좌는
+`(user_id, provider, toss_account_seq)` 조합으로 분리합니다. 다른 사용자가 같은
+`accountSeq`를 사용해도 기존 계좌의 소유자나 스냅샷이 변경되지 않습니다.
 선택한 계좌의 보유 종목은 조회할 때마다 `instruments`에 upsert됩니다.
 종목 검색창은 티커뿐 아니라 `instruments.name`과 `english_name`도 검색합니다. 토스 Open
 API는 회사명 검색 엔드포인트를 제공하지 않으므로, 처음 발견하는 종목은 티커로 한 번

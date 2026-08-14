@@ -32,7 +32,7 @@ SCHEMA_STATEMENTS = (
       created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
       updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
       PRIMARY KEY (account_id),
-      UNIQUE KEY uq_brokerage_provider_account (provider, toss_account_seq),
+      UNIQUE KEY uq_brokerage_user_provider_account (user_id, provider, toss_account_seq),
       KEY ix_brokerage_accounts_user_id (user_id),
       CONSTRAINT fk_brokerage_accounts_user FOREIGN KEY (user_id) REFERENCES app_users(user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
@@ -164,6 +164,16 @@ def initialize_schema(engine: Engine, statements: Iterable[str] = SCHEMA_STATEME
         if "password_hash" not in columns:
             connection.execute(text(
                 "ALTER TABLE app_users ADD COLUMN password_hash VARCHAR(512) NULL AFTER display_name"
+            ))
+        indexes = {index["name"]: index for index in inspect(connection).get_indexes("brokerage_accounts")}
+        if "uq_brokerage_provider_account" in indexes:
+            connection.execute(text(
+                "ALTER TABLE brokerage_accounts DROP INDEX uq_brokerage_provider_account"
+            ))
+        if "uq_brokerage_user_provider_account" not in indexes:
+            connection.execute(text(
+                "ALTER TABLE brokerage_accounts ADD UNIQUE INDEX "
+                "uq_brokerage_user_provider_account (user_id, provider, toss_account_seq)"
             ))
     validate_schema(engine)
 

@@ -14,6 +14,15 @@ class SchemaTests(unittest.TestCase):
         ddl = "\n".join(SCHEMA_STATEMENTS).lower()
         self.assertEqual(ddl.count("foreign key"), 10)
 
+    def test_brokerage_account_identity_is_scoped_to_user(self) -> None:
+        ddl = "\n".join(SCHEMA_STATEMENTS).lower()
+        self.assertIn(
+            "unique key uq_brokerage_user_provider_account "
+            "(user_id, provider, toss_account_seq)",
+            ddl,
+        )
+        self.assertNotIn("uq_brokerage_provider_account (provider", ddl)
+
 
 if __name__ == "__main__":
     unittest.main()

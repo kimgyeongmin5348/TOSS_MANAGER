@@ -93,7 +93,6 @@ def sync_user_and_accounts(
             VALUES
               (:user_id, 'TOSS_SECURITIES', :account_seq, :account_no_masked, :account_type, TRUE)
             ON DUPLICATE KEY UPDATE
-              user_id=VALUES(user_id),
               account_no_masked=VALUES(account_no_masked),
               account_type=VALUES(account_type),
               is_active=TRUE,
