@@ -76,3 +76,29 @@ class Settings:
             client_secret=values["TOSS_CLIENT_SECRET"],
             api_base_url=_env("TOSS_API_BASE_URL", "https://openapi.tossinvest.com").rstrip("/"),
         )
+
+
+@dataclass(frozen=True)
+class NewsSettings:
+    """Optional credentials; an empty provider is simply disabled."""
+
+    naver_client_id: str = ""
+    naver_client_secret: str = ""
+    opendart_api_key: str = ""
+    alpha_vantage_api_key: str = ""
+    refresh_seconds: int = 60
+
+    @classmethod
+    def from_env(cls) -> "NewsSettings":
+        load_dotenv()
+        try:
+            refresh_seconds = max(30, int(_env("NEWS_REFRESH_SECONDS", "60")))
+        except ValueError as exc:
+            raise ValueError("NEWS_REFRESH_SECONDS는 숫자여야 합니다.") from exc
+        return cls(
+            naver_client_id=_env("NAVER_NEWS_CLIENT_ID"),
+            naver_client_secret=_env("NAVER_NEWS_CLIENT_SECRET"),
+            opendart_api_key=_env("OPENDART_API_KEY"),
+            alpha_vantage_api_key=_env("ALPHA_VANTAGE_API_KEY"),
+            refresh_seconds=refresh_seconds,
+        )

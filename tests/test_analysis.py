@@ -34,6 +34,15 @@ class AnalysisTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "최소"):
             analyze_candles(sample_candles(40))
 
+    def test_accepts_period_specific_return_threshold(self) -> None:
+        result = analyze_candles(sample_candles(), return_threshold=0.0005)
+        stats = result.backtest
+        self.assertEqual(stats.occurrences, stats.rises + stats.falls + stats.flats)
+
+    def test_rejects_non_positive_return_threshold(self) -> None:
+        with self.assertRaisesRegex(ValueError, "0보다 커야"):
+            analyze_candles(sample_candles(), return_threshold=0)
+
 
 if __name__ == "__main__":
     unittest.main()

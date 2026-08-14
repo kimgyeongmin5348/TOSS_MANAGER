@@ -336,6 +336,28 @@ def latest_candle_at(
         }).scalar()
 
 
+def candle_coverage(
+    engine: Engine, *, symbol: str, market_country: str, interval: str = "1d"
+) -> dict[str, Any]:
+    """Return the stored time range and row count for an instrument's candles."""
+    with engine.connect() as connection:
+        row = connection.execute(text("""
+            SELECT MIN(c.candle_at) AS first_at, MAX(c.candle_at) AS last_at,
+                   COUNT(*) AS candle_count
+            FROM candles c
+            JOIN instruments i ON i.instrument_id=c.instrument_id
+            WHERE i.symbol=:symbol AND i.market_country=:country
+              AND c.interval_code=:interval
+        """), {
+            "symbol": symbol.upper(), "country": market_country.upper(), "interval": interval,
+        }).mappings().one()
+    return {
+        "first_at": row["first_at"],
+        "last_at": row["last_at"],
+        "candle_count": int(row["candle_count"] or 0),
+    }
+
+
 def load_candles(
     engine: Engine, *, symbol: str, market_country: str, interval: str = "1d"
 ) -> list[dict[str, Any]]:

@@ -91,6 +91,29 @@ SCHEMA_STATEMENTS = (
       PRIMARY KEY (instrument_id, interval_code, candle_at),
       CONSTRAINT fk_candles_instrument FOREIGN KEY (instrument_id) REFERENCES instruments(instrument_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
+    """CREATE TABLE IF NOT EXISTS news_articles (
+      news_id BIGINT NOT NULL AUTO_INCREMENT,
+      instrument_id BIGINT NOT NULL,
+      provider VARCHAR(32) NOT NULL,
+      external_id VARCHAR(128) NOT NULL,
+      content_type VARCHAR(32) NOT NULL DEFAULT 'NEWS',
+      title TEXT NOT NULL, summary TEXT, source VARCHAR(255), article_url TEXT,
+      published_at DATETIME(6) NOT NULL,
+      collected_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+      sentiment_score DECIMAL(10,6), relevance_score DECIMAL(10,6),
+      created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+      updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+      PRIMARY KEY (news_id),
+      UNIQUE KEY uq_news_provider_external_instrument (provider, external_id, instrument_id),
+      KEY ix_news_instrument_published (instrument_id, published_at),
+      CONSTRAINT fk_news_articles_instrument FOREIGN KEY (instrument_id) REFERENCES instruments(instrument_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
+    """CREATE TABLE IF NOT EXISTS news_collection_state (
+      instrument_id BIGINT NOT NULL, provider VARCHAR(32) NOT NULL,
+      last_success_at DATETIME(6), updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+      PRIMARY KEY (instrument_id, provider),
+      CONSTRAINT fk_news_collection_instrument FOREIGN KEY (instrument_id) REFERENCES instruments(instrument_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
     """CREATE TABLE IF NOT EXISTS exchange_rates (
       base_currency VARCHAR(8) NOT NULL, quote_currency VARCHAR(8) NOT NULL, rate_at DATETIME(6) NOT NULL,
       exchange_rate DECIMAL(30,10) NOT NULL, source VARCHAR(64),
@@ -114,6 +137,8 @@ EXPECTED_COLUMNS = {
     "holding_snapshot_items": {"snapshot_id", "instrument_id"},
     "price_snapshots": {"instrument_id", "captured_at"},
     "candles": {"instrument_id", "interval_code", "candle_at"},
+    "news_articles": {"news_id", "instrument_id", "provider", "external_id", "published_at"},
+    "news_collection_state": {"instrument_id", "provider", "last_success_at"},
     "exchange_rates": {"base_currency", "quote_currency", "rate_at"},
     "watchlist_items": {"user_id", "instrument_id"},
 }

@@ -12,9 +12,13 @@ from .signals import add_signals
 MINIMUM_CANDLES = 80
 
 
-def analyze_candles(candles: pd.DataFrame) -> AnalysisResult:
+def analyze_candles(
+    candles: pd.DataFrame, *, return_threshold: float = 0.002
+) -> AnalysisResult:
     if len(candles) < MINIMUM_CANDLES:
-        raise ValueError(f"분석에는 최소 {MINIMUM_CANDLES}개의 일봉이 필요합니다.")
+        raise ValueError(f"분석에는 최소 {MINIMUM_CANDLES}개의 캔들이 필요합니다.")
+    if return_threshold <= 0:
+        raise ValueError("상승·하락 판정 기준은 0보다 커야 합니다.")
     frame = add_signals(add_indicators(candles)).dropna().reset_index(drop=True)
     if len(frame) < 2:
         raise ValueError("지표 계산에 사용할 유효한 캔들이 부족합니다.")
@@ -24,7 +28,7 @@ def analyze_candles(candles: pd.DataFrame) -> AnalysisResult:
         score=score,
         direction=direction_from_score(score),
         evidence=evidence,
-        backtest=evaluate_history(frame),
+        backtest=evaluate_history(frame, threshold=return_threshold),
         candle_count=len(candles),
         analyzed_at=latest["timestamp"],
     )

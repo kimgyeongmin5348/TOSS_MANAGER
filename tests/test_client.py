@@ -58,6 +58,27 @@ class ClientErrorTests(unittest.TestCase):
         self.assertEqual(len(result["candles"]), 2)
         self.assertEqual(self.client.get_candles.call_count, 1)
 
+    @patch("toss_manager.client.time.sleep")
+    def test_candle_window_pages_until_target_and_deduplicates(self, sleep) -> None:
+        now = datetime.now(timezone.utc)
+        shared = (now - timedelta(minutes=1)).isoformat()
+        self.client.get_candles = Mock(side_effect=[
+            {"candles": [
+                {"timestamp": now.isoformat()},
+                {"timestamp": shared},
+            ], "nextBefore": "page-2"},
+            {"candles": [
+                {"timestamp": shared},
+                {"timestamp": (now - timedelta(minutes=2)).isoformat()},
+            ], "nextBefore": "page-3"},
+        ])
+
+        result = self.client.get_candle_window("AAPL", target_count=3)
+
+        self.assertEqual(len(result["candles"]), 3)
+        self.assertEqual(self.client.get_candles.call_count, 2)
+        sleep.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

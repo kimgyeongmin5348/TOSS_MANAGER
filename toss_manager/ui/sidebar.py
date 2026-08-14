@@ -30,18 +30,18 @@ def render_sidebar(frame: pd.DataFrame) -> None:
     if frame.empty:
         st.sidebar.caption("보유 종목이 없습니다.")
 
-    for holding in frame.itertuples():
+    for index, holding in enumerate(frame.itertuples()):
         rate = percentage(holding.profit_loss_rate)
-        rate_marker = "🔴" if rate > 0 else "🔵" if rate < 0 else "⚪"
+        rate_tone = "up" if rate > 0 else "down" if rate < 0 else "flat"
         market = "US" if str(holding.currency) == "USD" else "KR"
         quantity = float(holding.quantity or 0)
         quantity_text = f"{quantity:,.4f}".rstrip("0").rstrip(".")
         if st.sidebar.button(
-            f"**{holding.name or holding.symbol}**　{rate_marker} "
+            f"**{holding.name or holding.symbol}**　"
             f"{percentage_text(holding.profit_loss_rate)}  \n"
             f"{holding.symbol} · {quantity_text}주 · 평단 "
             f"{currency(float(holding.average_purchase_price or 0), market)}",
-            key=f"holding_{market}_{holding.symbol}",
+            key=f"holding_{rate_tone}_{index}",
             use_container_width=True,
         ):
             st.session_state.selected_symbol = str(holding.symbol).upper()

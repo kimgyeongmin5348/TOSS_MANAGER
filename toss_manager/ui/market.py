@@ -1,6 +1,7 @@
 """Market ranking and stock chart views."""
 
 import re
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -10,10 +11,22 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.client import TossAPIClient, TossAPIError
 from toss_manager.transform import candles_frame
-from toss_manager.repository import latest_candle_at, load_candles, upsert_candles
+from toss_manager.repository import candle_coverage, load_candles, upsert_candles
 
 from .common import PERIODS, aggregate_candles, currency, percentage, percentage_text
-from .manager import show_manager_dialog
+from .manager import render_manager_launcher
+
+
+INTRADAY_RAW_COUNTS = {"1분": 200, "5분": 1_000, "10분": 2_000}
+RETURN_THRESHOLDS = {
+    "1분": 0.0005,
+    "5분": 0.001,
+    "10분": 0.0015,
+    "1일": 0.002,
+    "주": 0.005,
+    "월": 0.01,
+    "년": 0.02,
+}
 
 
 def render_stock_detail(
@@ -44,26 +57,27 @@ def render_stock_detail(
         unsafe_allow_html=True,
     )
     st.write("")
-    if st.button("✨ Porto 매니저 분석", use_container_width=True):
-        try:
-            with st.spinner("저장 이후의 새 일봉을 확인하고 분석하고 있습니다..."):
-                analysis_frame = sync_daily_candles(
-                    client, engine, symbol, market, stock_info
-                )
-            show_manager_dialog(name, symbol, analysis_frame)
-        except SQLAlchemyError:
-            st.error("저장된 분석 데이터를 불러오지 못했습니다.")
-        except (TossAPIError, ValueError) as exc:
-            st.error(f"매니저 분석 데이터를 불러오지 못했습니다: {exc}")
-    period = st.segmented_control("캔들 주기", list(PERIODS), default="1일")
-    api_interval, rule, count = PERIODS[period or "1일"]
     try:
-        if api_interval == "1d":
-            raw_frame = sync_daily_candles(
+        with st.spinner("최근 5년 일봉을 확인하고 저장하고 있습니다..."):
+            daily_frame = sync_daily_candles(
                 client, engine, symbol, market, stock_info
             )
+    except (SQLAlchemyError, TossAPIError, ValueError) as exc:
+        st.error(f"장기 캔들 동기화 또는 조회에 실패했습니다: {exc}")
+        return
+
+    period = st.segmented_control("캔들 주기", list(PERIODS), default="1일")
+    period = period or "1일"
+    api_interval, rule, count = PERIODS[period]
+    try:
+        if api_interval == "1d":
+            raw_frame = daily_frame
         else:
-            payload = client.get_candles(symbol, interval=api_interval, count=count)
+            payload = client.get_candle_window(
+                symbol,
+                interval=api_interval,
+                target_count=INTRADAY_RAW_COUNTS.get(period, count),
+            )
             raw_frame = candles_frame(payload, symbol, api_interval)
             try:
                 upsert_candles(
@@ -76,6 +90,15 @@ def render_stock_detail(
         if frame.empty:
             st.info("표시할 차트 데이터가 없습니다.")
             return
+        render_manager_launcher(
+            engine,
+            name=name,
+            symbol=symbol,
+            market_country=market,
+            candles=frame,
+            period=period,
+            return_threshold=RETURN_THRESHOLDS[period],
+        )
         figure = build_candlestick_figure(frame, symbol, market, holdings)
         st.plotly_chart(
             figure,
@@ -102,14 +125,23 @@ def sync_daily_candles(
     stock_info: dict,
 ) -> pd.DataFrame:
     """Initial five-year backfill, then incremental refresh from the DB boundary."""
-    latest = latest_candle_at(
+    coverage = candle_coverage(
         engine, symbol=symbol, market_country=market, interval="1d"
     )
-    payload = (
-        client.get_candles_since(symbol, since=latest, interval="1d")
-        if latest
-        else client.get_candle_history(symbol, interval="1d", years=5)
-    )
+    first = coverage["first_at"]
+    latest = coverage["last_at"]
+    cutoff = datetime.now(timezone.utc) - timedelta(days=round(5 * 365.25))
+    first_utc = None
+    if first is not None:
+        first_utc = (
+            first.replace(tzinfo=timezone.utc)
+            if first.tzinfo is None
+            else first.astimezone(timezone.utc)
+        )
+    if first_utc is None or first_utc > cutoff + timedelta(days=7):
+        payload = client.get_candle_history(symbol, interval="1d", years=5)
+    else:
+        payload = client.get_candles_since(symbol, since=latest, interval="1d")
     incoming = candles_frame(payload, symbol, "1d")
     upsert_candles(
         engine, symbol=symbol, market_country=market,

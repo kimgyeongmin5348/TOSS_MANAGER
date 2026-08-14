@@ -9,8 +9,8 @@ from toss_manager.repository import load_saved_candles, load_saved_portfolio
 
 from .common import aggregate_candles
 from .formatting import currency, percentage_text
-from .manager import show_manager_dialog
-from .market import build_candlestick_figure
+from .manager import render_manager_launcher
+from .market import RETURN_THRESHOLDS, build_candlestick_figure
 
 
 OFFLINE_PERIODS = {
@@ -105,10 +105,19 @@ def _render_saved_stock(
     candles["timestamp"] = pd.to_datetime(candles["timestamp"], utc=True)
     for column in ["open_price", "high_price", "low_price", "close_price", "volume"]:
         candles[column] = pd.to_numeric(candles[column], errors="coerce")
-    if st.button("✨ 저장 데이터로 Porto 매니저 분석", use_container_width=True):
-        show_manager_dialog(name, symbol, candles)
     period = st.segmented_control("저장 캔들 주기", list(OFFLINE_PERIODS), default="1일")
-    chart = aggregate_candles(candles, OFFLINE_PERIODS[period or "1일"])
+    period = period or "1일"
+    chart = aggregate_candles(candles, OFFLINE_PERIODS[period])
+    render_manager_launcher(
+        engine,
+        name=name,
+        symbol=symbol,
+        market_country=market,
+        candles=chart,
+        period=period,
+        return_threshold=RETURN_THRESHOLDS[period],
+        offline=True,
+    )
     figure = build_candlestick_figure(chart, symbol, market, holdings)
     st.plotly_chart(figure, use_container_width=True, config={"displayModeBar": False, "scrollZoom": True})
     st.caption("DB에 저장된 일봉입니다. 좌우 드래그로 이동하고 휠로 확대·축소할 수 있습니다.")

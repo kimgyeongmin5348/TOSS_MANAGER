@@ -208,6 +208,52 @@ class TossAPIClient:
         filtered.sort(key=lambda candle: str(candle["timestamp"]))
         return {"candles": filtered, "years": years}
 
+    def get_candle_window(
+        self,
+        symbol: str,
+        *,
+        interval: str = "1m",
+        target_count: int = 200,
+        adjusted: bool = True,
+        max_pages: int = 20,
+    ) -> dict[str, Any]:
+        """Page backward until a recent, deduplicated candle window is filled."""
+        if interval not in {"1m", "1d"}:
+            raise ValueError("interval은 '1m' 또는 '1d'만 가능합니다.")
+        if not 1 <= target_count <= max_pages * 200:
+            raise ValueError("target_count가 페이지 수집 한도를 벗어났습니다.")
+
+        before: str | None = None
+        candles_by_timestamp: dict[str, dict[str, Any]] = {}
+        for page_number in range(max_pages):
+            payload = self.get_candles(
+                symbol, interval=interval, count=200,
+                before=before, adjusted=adjusted,
+            )
+            page = payload.get("candles", []) if payload else []
+            if not page:
+                break
+            for candle in page:
+                timestamp = str(candle.get("timestamp", ""))
+                if timestamp:
+                    candles_by_timestamp[timestamp] = candle
+            if len(candles_by_timestamp) >= target_count:
+                break
+            next_before = payload.get("nextBefore")
+            if not next_before or next_before == before:
+                break
+            before = next_before
+            if page_number + 1 < max_pages:
+                time.sleep(0.22)
+
+        candles = sorted(
+            candles_by_timestamp.values(), key=lambda item: str(item["timestamp"])
+        )
+        return {
+            "candles": candles[-target_count:],
+            "requestedCount": target_count,
+        }
+
     def get_candles_since(
         self,
         symbol: str,

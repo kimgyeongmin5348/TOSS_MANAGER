@@ -10,6 +10,11 @@ CSS = """<style>
 .brand{display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:1.15rem;margin:.2rem 0 1.5rem}
 .mark{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;color:#fff;background:var(--blue)}
 .side-title{font-size:.73rem;font-weight:700;color:#959baa;letter-spacing:.08em;margin:1.25rem 0 .45rem}
+[class*="st-key-holding_up_"] button{background:#fff0f2!important;border-color:#f5cbd0!important;color:#6d2c35!important}
+[class*="st-key-holding_up_"] button:hover{background:#ffe7ea!important;border-color:#efb8c0!important;color:#5c2029!important}
+[class*="st-key-holding_down_"] button{background:#eef7ff!important;border-color:#c9e1f5!important;color:#254f70!important}
+[class*="st-key-holding_down_"] button:hover{background:#e2f1ff!important;border-color:#b5d6f0!important;color:#193f5e!important}
+[class*="st-key-holding_flat_"] button{background:#f5f6f8!important;border-color:#dde1e7!important;color:#596170!important}
 .page-head{display:flex;align-items:end;justify-content:space-between;margin-bottom:1.2rem}
 .page-head h1{font-size:1.75rem;letter-spacing:-.04em;margin:0}
 .page-head p,.caption{color:var(--muted);font-size:.82rem;margin:.35rem 0 0}
