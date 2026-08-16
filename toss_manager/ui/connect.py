@@ -31,7 +31,17 @@ def render_server_ip_guide() -> None:
         st.warning("현재 서버의 공인 IPv4를 확인하지 못했습니다. 잠시 후 새로고침해 주세요.")
 
 
-def render_realtime_connect(engine: Engine, user_id: int, email: str) -> None:
+def render_realtime_connect(
+    engine: Engine, user_id: int, email: str, *, sidebar: bool = False
+) -> None:
+    if sidebar:
+        with st.sidebar:
+            _render_realtime_connect_content(engine, user_id, email)
+        return
+    _render_realtime_connect_content(engine, user_id, email)
+
+
+def _render_realtime_connect_content(engine: Engine, user_id: int, email: str) -> None:
     with st.expander("토스 실시간 연결", expanded=True):
         st.caption("키는 현재 세션에서만 사용되며 DB에 저장되지 않습니다.")
         render_server_ip_guide()

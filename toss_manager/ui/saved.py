@@ -49,7 +49,7 @@ def render_saved_view(engine: Engine, user_id: int) -> None:
             _render_saved_stock(engine, user_id, match.iloc[0], holdings)
             return
     _render_portfolio_table(holdings)
-    _render_risk_overview(engine, user_id, holdings)
+    render_risk_overview(engine, user_id, holdings)
 
 
 def _risk_label(score: int) -> tuple[str, str, str, str]:
@@ -90,7 +90,7 @@ def _risk_ai_sentence(profile: object, holdings: pd.DataFrame, user_id: int) -> 
     return sentence
 
 
-def _render_risk_overview(engine: Engine, user_id: int, holdings: pd.DataFrame) -> None:
+def render_risk_overview(engine: Engine, user_id: int, holdings: pd.DataFrame) -> None:
     """Always-visible visual summary of observed portfolio risk."""
     try:
         candle_sets = {}
@@ -175,8 +175,6 @@ def _render_risk_context(engine: Engine, user_id: int, holdings: pd.DataFrame) -
 
 
 def _render_offline_sidebar(holdings: pd.DataFrame) -> None:
-    st.sidebar.markdown('<div class="brand"><span class="mark">P</span>porto</div>', unsafe_allow_html=True)
-    st.sidebar.caption("● 저장 데이터 모드")
     st.sidebar.markdown('<div class="side-title">SAVED HOLDINGS</div>', unsafe_allow_html=True)
     for holding in holdings.drop_duplicates("symbol").itertuples():
         market = "US" if holding.currency == "USD" else "KR"

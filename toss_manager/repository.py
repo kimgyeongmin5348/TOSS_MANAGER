@@ -284,8 +284,9 @@ def load_saved_portfolio(engine: Engine, user_id: int) -> list[dict[str, Any]]:
             SELECT ba.account_no_masked, ba.account_type, ps.captured_at,
                    i.symbol, i.name, i.market_country, i.security_type,
                    i.leverage_factor, h.currency, h.quantity,
-                   h.last_price, h.average_purchase_price, h.market_value,
-                   h.profit_loss, h.profit_loss_rate
+                    h.last_price, h.average_purchase_price, h.purchase_amount,
+                    h.market_value, h.profit_loss, h.profit_loss_rate,
+                    h.daily_profit_loss, h.daily_profit_loss_rate
             FROM brokerage_accounts ba
             JOIN portfolio_snapshots ps ON ps.account_id=ba.account_id
             JOIN holding_snapshot_items h ON h.snapshot_id=ps.snapshot_id
@@ -294,6 +295,24 @@ def load_saved_portfolio(engine: Engine, user_id: int) -> list[dict[str, Any]]:
               AND ps.snapshot_id=(SELECT MAX(p2.snapshot_id) FROM portfolio_snapshots p2 WHERE p2.account_id=ba.account_id)
             ORDER BY ba.account_id, h.market_value DESC
         """), {"user_id": user_id}).mappings())
+
+
+def load_portfolio_history(
+    engine: Engine, user_id: int, *, limit: int = 30
+) -> list[dict[str, Any]]:
+    """Return recent user-level snapshot totals without mixing currencies."""
+    with engine.connect() as connection:
+        return list(connection.execute(text("""
+            SELECT ps.captured_at,
+                   SUM(COALESCE(ps.market_value_krw, 0)) AS market_value_krw,
+                   SUM(COALESCE(ps.market_value_usd, 0)) AS market_value_usd
+            FROM portfolio_snapshots ps
+            JOIN brokerage_accounts ba ON ba.account_id=ps.account_id
+            WHERE ba.user_id=:user_id
+            GROUP BY ps.captured_at
+            ORDER BY ps.captured_at DESC
+            LIMIT :limit
+        """), {"user_id": user_id, "limit": int(limit)}).mappings())
 
 
 def load_saved_candles(

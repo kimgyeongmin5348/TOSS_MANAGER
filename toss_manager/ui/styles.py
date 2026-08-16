@@ -15,6 +15,12 @@ CSS = """<style>
 [class*="st-key-holding_down_"] button{background:#eef7ff!important;border-color:#c9e1f5!important;color:#254f70!important}
 [class*="st-key-holding_down_"] button:hover{background:#e2f1ff!important;border-color:#b5d6f0!important;color:#193f5e!important}
 [class*="st-key-holding_flat_"] button{background:#f5f6f8!important;border-color:#dde1e7!important;color:#596170!important}
+.nav-title{margin-top:.25rem}
+[class*="st-key-nav_idle_"] button,[class*="st-key-nav_active_"] button{height:42px!important;justify-content:flex-start!important;padding:0 .9rem!important;border-radius:12px!important;font-size:.8rem!important;font-weight:650!important;margin-bottom:.18rem!important}
+[class*="st-key-nav_idle_"] button{background:#fff!important;border-color:transparent!important;color:#596170!important}
+[class*="st-key-nav_idle_"] button:hover{background:#f3f6fb!important;border-color:#e2e8f2!important;color:#24324a!important;transform:translateX(2px)}
+[class*="st-key-nav_active_"] button{background:#edf3ff!important;border-color:#cbdcff!important;color:#2259bd!important;box-shadow:inset 3px 0 0 #2864dc!important}
+[class*="st-key-nav_active_"] button:hover{background:#e5eeff!important;border-color:#bfd3ff!important;color:#194ca8!important}
 .page-head{display:flex;align-items:end;justify-content:space-between;margin-bottom:1.2rem}
 .page-head h1{font-size:1.75rem;letter-spacing:-.04em;margin:0}
 .page-head p,.caption{color:var(--muted);font-size:.82rem;margin:.35rem 0 0}
@@ -78,10 +84,18 @@ CSS = """<style>
 .manager-up{color:var(--red)!important}.manager-down{color:var(--blue)!important}.manager-flat{color:#727986!important}
 .manager-evidence{display:grid;grid-template-columns:90px 1fr 60px;align-items:center;padding:.72rem .15rem;border-bottom:1px solid var(--line);font-size:.78rem}
 .manager-evidence small{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.portfolio-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:1.5rem}
+.portfolio-head h1{font-size:1.8rem;letter-spacing:-.045em;margin:0}.portfolio-head p{color:var(--muted);font-size:.82rem;margin:.35rem 0 0}
+.data-status{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;padding:.65rem .8rem;border-radius:12px;background:#fff;border:1px solid var(--line)}
+.data-status b{font-size:.72rem}.data-status span{font-size:.63rem;color:var(--muted)}.data-status.live b{color:#15945b}.data-status.saved b{color:#9a6a25}
+.holding-rank{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem;margin-bottom:.5rem;background:#fff;border:1px solid var(--line);border-radius:14px}
+.holding-rank>div{display:flex;flex-direction:column;gap:.18rem}.holding-rank>div:last-child{text-align:right}.holding-rank b{font-size:.82rem}.holding-rank span{font-size:.67rem;color:var(--muted)}
+.summary-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:.4rem 1rem}.summary-card>div{display:flex;justify-content:space-between;align-items:center;padding:.9rem 0;border-bottom:1px solid #f0f2f5}.summary-card>div:last-child{border:0}.summary-card span{font-size:.72rem;color:var(--muted)}.summary-card b{font-size:.82rem}
 @media(max-width:800px){
   .block-container{padding:3.5rem 1rem 3rem!important}
   .rank-row{grid-template-columns:32px 1fr 80px 80px}.rank-row>:nth-child(4){display:none}
   .login-shell{min-height:auto}.login-title{font-size:2.4rem}.feature-grid{grid-template-columns:1fr}.login-card{margin-top:1rem}
   .auth-brand{margin:0 0 2rem}.auth-brand>span{display:none}.auth-hero{padding:0}.auth-hero h1{font-size:2.45rem}.auth-lead br{display:none}.auth-features{grid-template-columns:1fr}.auth-mode-note{display:block}.auth-mode-note b{display:block;margin-bottom:.35rem}
+  .portfolio-head{align-items:flex-start;flex-direction:column}.data-status{align-items:flex-start;width:100%}
 }
 </style>"""
