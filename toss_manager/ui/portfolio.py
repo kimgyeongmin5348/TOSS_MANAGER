@@ -55,6 +55,63 @@ def _amount_lines(values: dict[str, float]) -> str:
     return " / ".join(currency(values[item], "US" if item == "USD" else "KR") for item in order)
 
 
+def _value_tone(values: dict[str, float]) -> str:
+    numbers = list(values.values())
+    if numbers and all(value >= 0 for value in numbers) and any(value > 0 for value in numbers):
+        return "positive"
+    if numbers and all(value <= 0 for value in numbers) and any(value < 0 for value in numbers):
+        return "negative"
+    return "neutral"
+
+
+def _render_home_hero(*, name: str, live: bool, timestamp: str) -> None:
+    mode = "실시간으로 보고 있어요" if live else "마지막 저장 기록이에요"
+    mode_class = "live" if live else "saved"
+    st.markdown(
+        f"""
+        <section class="home-hero">
+          <div class="home-orb one"></div><div class="home-orb two"></div>
+          <div class="home-hero-copy">
+            <small>MY PORTFOLIO</small>
+            <h1>반가워요, <em>{html.escape(name)}</em>님</h1>
+            <p>오늘도 내 자산의 흐름을 편안하게 살펴봐요.</p>
+          </div>
+          <div class="home-mode {mode_class}">
+            <b><i></i>{mode}</b><span>{html.escape(timestamp)}</span>
+          </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_home_metrics(
+    market_values: dict[str, float],
+    purchase_values: dict[str, float],
+    profit_values: dict[str, float],
+    daily_values: dict[str, float],
+) -> None:
+    cards = (
+        ("asset", "◇", "전체 평가금액", _amount_lines(market_values), "현재 보유 자산"),
+        ("purchase", "⌁", "총 매입금액", _amount_lines(purchase_values), "투자한 원금"),
+        ("profit", "↗", "전체 평가손익", _amount_lines(profit_values), "누적 손익"),
+        ("daily", "☀", "오늘 손익", _amount_lines(daily_values), "오늘의 움직임"),
+    )
+    markup = []
+    tones = ("neutral", "neutral", _value_tone(profit_values), _value_tone(daily_values))
+    for card, tone in zip(cards, tones):
+        style, icon, label, value, note = card
+        markup.append(
+            f'<div class="home-metric {style} {tone}"><div class="home-metric-icon">{icon}</div>'
+            f'<span>{html.escape(label)}</span><b>{html.escape(value)}</b>'
+            f'<small>{html.escape(note)}</small></div>'
+        )
+    st.markdown(
+        '<div class="home-metric-grid">' + "".join(markup) + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _page_header(title: str, description: str, *, live: bool, timestamp: str) -> None:
     mode = "실시간 조회" if live else "저장 데이터"
     mode_class = "live" if live else "saved"
@@ -75,12 +132,7 @@ def render_home(
 ) -> None:
     frame = _prepared(holdings)
     name = display_name or "투자자"
-    _page_header(
-        f"안녕하세요, {name}님",
-        "흩어진 계좌의 현재 상태와 위험 신호를 한눈에 확인하세요.",
-        live=live,
-        timestamp=_timestamp(frame),
-    )
+    _render_home_hero(name=name, live=live, timestamp=_timestamp(frame))
     if frame.empty:
         st.info("표시할 보유 종목이 없습니다. 토스 계좌를 연결하거나 보유 내역을 확인해 주세요.")
         return
@@ -89,71 +141,104 @@ def render_home(
     purchase_values = _totals(frame, "purchase_amount")
     profit_values = _totals(frame, "profit_loss")
     daily_values = _totals(frame, "daily_profit_loss")
-    metrics = st.columns(4)
-    metrics[0].metric("전체 평가금액", _amount_lines(market_values))
-    metrics[1].metric("총 매입금액", _amount_lines(purchase_values))
-    metrics[2].metric("전체 평가손익", _amount_lines(profit_values))
-    metrics[3].metric("오늘 손익", _amount_lines(daily_values))
+    _render_home_metrics(
+        market_values, purchase_values, profit_values, daily_values
+    )
 
     left, right = st.columns([1.25, 0.75], gap="large")
     with left:
-        st.markdown("### 상위 보유 종목")
+        st.markdown(
+            '<div class="home-section-head"><div><small>HOLDINGS</small>'
+            '<h3>비중이 큰 자산</h3></div><span>상위 5개</span></div>',
+            unsafe_allow_html=True,
+        )
         ranked = frame.sort_values("market_value", ascending=False).head(5).copy()
-        for row in ranked.itertuples():
+        for rank, row in enumerate(ranked.itertuples(), start=1):
             market = "US" if row.currency == "USD" else "KR"
             safe_name = html.escape(str(row.name or row.symbol))
             st.markdown(
-                f'<div class="holding-rank"><div><b>{safe_name}</b><span>{html.escape(str(row.symbol))}'
-                f' · {row.currency}</span></div><div><b>{currency(float(row.market_value), market)}</b>'
+                f'<div class="holding-rank"><i>{rank:02d}</i><div><b>{safe_name}</b><span>{html.escape(str(row.symbol))}'
+                f' · {html.escape(str(row.currency))}</span></div><div><b>{currency(float(row.market_value), market)}</b>'
                 f'<span>{percentage_text(row.profit_loss_rate)}</span></div></div>',
                 unsafe_allow_html=True,
             )
     with right:
-        st.markdown("### 포트폴리오 요약")
+        st.markdown(
+            '<div class="home-section-head"><div><small>AT A GLANCE</small>'
+            '<h3>포트폴리오 한눈에</h3></div></div>',
+            unsafe_allow_html=True,
+        )
         unique_count = frame["symbol"].astype(str).str.upper().nunique()
         concentration = 0.0
         if float(frame["market_value"].clip(lower=0).sum()) > 0:
             by_symbol = frame.groupby(frame["symbol"].astype(str).str.upper())["market_value"].sum()
             concentration = float(by_symbol.max() / by_symbol.sum() * 100)
         risk_label = "집중도 낮음" if concentration < 25 else "집중도 보통" if concentration < 45 else "집중도 높음"
+        gauge = max(0, min(100, concentration))
         st.markdown(
-            f'<div class="summary-card"><div><span>보유 종목</span><b>{unique_count}개</b></div>'
-            f'<div><span>최대 종목 비중</span><b>{concentration:.1f}%</b></div>'
-            f'<div><span>위험 요약</span><b>{risk_label}</b></div></div>',
+            f'<div class="home-summary-card"><div class="home-gauge" '
+            f'style="background:conic-gradient(#7c6ee6 {gauge * 3.6:.1f}deg,#ebe9fb 0)">'
+            f'<div><b>{concentration:.1f}%</b><span>최대 비중</span></div></div>'
+            f'<div class="home-summary-list"><div><span>함께 담은 종목</span><b>{unique_count}개</b></div>'
+            f'<div><span>현재 구성</span><b>{risk_label}</b></div>'
+            f'<small>한 종목에 치우치지 않았는지 가볍게 확인해 보세요.</small></div></div>',
             unsafe_allow_html=True,
         )
 
-    st.markdown("### 통화별 자산")
+    st.markdown(
+        '<div class="home-section-head wide"><div><small>CURRENCY</small>'
+        '<h3>통화별로 나눠보기</h3></div></div>',
+        unsafe_allow_html=True,
+    )
     allocation = frame.groupby("currency", as_index=False)["market_value"].sum()
-    cols = st.columns(max(1, len(allocation)))
-    for column, row in zip(cols, allocation.itertuples()):
+    currency_cards = []
+    for row in allocation.itertuples():
         market = "US" if row.currency == "USD" else "KR"
-        column.metric(f"{row.currency} 평가금액", currency(float(row.market_value), market))
+        currency_cards.append(
+            f'<div class="home-currency-card"><span>{html.escape(str(row.currency))} ASSETS</span>'
+            f'<b>{html.escape(currency(float(row.market_value), market))}</b>'
+            f'<small>{"달러" if row.currency == "USD" else "원화"} 자산 평가금액</small></div>'
+        )
+    st.markdown(
+        '<div class="home-currency-grid">' + "".join(currency_cards) + "</div>",
+        unsafe_allow_html=True,
+    )
     st.caption("서로 다른 통화는 환율 없이 합산하거나 비중으로 환산하지 않았습니다.")
 
-    st.markdown("### 최근 포트폴리오 변화")
+    st.markdown(
+        '<div class="home-section-head wide"><div><small>RECENT CHANGE</small>'
+        '<h3>최근 기록과 비교했어요</h3></div></div>',
+        unsafe_allow_html=True,
+    )
     history_frame = pd.DataFrame(history or [])
     if len(history_frame) < 2:
-        st.caption("비교할 스냅샷이 아직 부족합니다. 두 번 이상 저장되면 최근 변화를 표시합니다.")
+        st.markdown(
+            '<div class="home-empty-note"><span>✦</span><div><b>변화를 알아보는 중이에요</b>'
+            '<small>스냅샷이 두 번 이상 쌓이면 최근 자산 변화를 보여드릴게요.</small></div></div>',
+            unsafe_allow_html=True,
+        )
     else:
         history_frame["captured_at"] = pd.to_datetime(
             history_frame["captured_at"], errors="coerce", utc=True
         )
         history_frame = history_frame.dropna(subset=["captured_at"]).sort_values("captured_at")
         recent, previous = history_frame.iloc[-1], history_frame.iloc[-2]
-        change_columns = st.columns(2)
-        for column, code, market in (
-            (change_columns[0], "krw", "KR"),
-            (change_columns[1], "usd", "US"),
-        ):
+        change_cards = []
+        for code, market in (("krw", "KR"), ("usd", "US")):
             key = f"market_value_{code}"
             current = float(recent.get(key) or 0)
             before = float(previous.get(key) or 0)
-            column.metric(
-                f"{code.upper()} 평가액 변화",
-                currency(current, market),
-                currency(current - before, market),
+            difference = current - before
+            tone = "positive" if difference > 0 else "negative" if difference < 0 else "neutral"
+            change_cards.append(
+                f'<div class="home-change-card {tone}"><span>{code.upper()} 평가금액</span>'
+                f'<b>{html.escape(currency(current, market))}</b>'
+                f'<small>이전 기록보다 {html.escape(currency(difference, market))}</small></div>'
             )
+        st.markdown(
+            '<div class="home-change-grid">' + "".join(change_cards) + "</div>",
+            unsafe_allow_html=True,
+        )
         st.caption("최근 두 저장 시점의 평가금액 차이이며 입출금 영향을 제거한 투자수익률은 아닙니다.")
 
 

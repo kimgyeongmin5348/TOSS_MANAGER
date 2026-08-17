@@ -128,3 +128,33 @@ class NvidiaLLMSettings:
     def from_env(cls) -> "NvidiaLLMSettings":
         load_dotenv()
         return cls(api_key=_env("NVIDIA_API_KEY"))
+
+
+@dataclass(frozen=True)
+class MailSettings:
+    """Optional SMTP settings used for verification and password reset."""
+
+    host: str = ""
+    port: int = 587
+    username: str = ""
+    password: str = ""
+    sender: str = ""
+    use_tls: bool = True
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.host and self.sender)
+
+    @classmethod
+    def from_env(cls) -> "MailSettings":
+        load_dotenv()
+        try:
+            port = int(_env("SMTP_PORT", "587"))
+        except ValueError as exc:
+            raise ValueError("SMTP_PORT는 숫자여야 합니다.") from exc
+        return cls(
+            host=_env("SMTP_HOST"), port=port,
+            username=_env("SMTP_USERNAME"), password=_env("SMTP_PASSWORD"),
+            sender=_env("SMTP_FROM"),
+            use_tls=_env("SMTP_USE_TLS", "true").lower() not in {"0", "false", "no"},
+        )

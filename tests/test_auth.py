@@ -1,6 +1,11 @@
 import unittest
 
-from toss_manager.auth import hash_password, verify_password
+from toss_manager.auth import (
+    hash_password,
+    new_account_token,
+    verify_account_token,
+    verify_password,
+)
 
 
 class PasswordTests(unittest.TestCase):
@@ -15,6 +20,13 @@ class PasswordTests(unittest.TestCase):
     def test_short_password_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             hash_password("short")
+
+    def test_account_token_is_stored_as_a_digest(self) -> None:
+        token, digest, expires_at = new_account_token()
+        self.assertNotEqual(token, digest)
+        self.assertTrue(verify_account_token(token, digest))
+        self.assertFalse(verify_account_token("wrong", digest))
+        self.assertIsNotNone(expires_at)
 
 
 if __name__ == "__main__":

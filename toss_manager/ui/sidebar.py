@@ -15,6 +15,7 @@ NAVIGATION_ITEMS = (
     ("시장", "📈"),
     ("관심종목", "⭐"),
     ("조건주문", "🔔"),
+    ("계정 관리", "⚙️"),
 )
 
 
@@ -110,6 +111,5 @@ def render_sidebar(frame: pd.DataFrame) -> None:
             st.rerun()
 
     st.sidebar.write("")
-    if st.sidebar.button("로그아웃"):
-        st.session_state.clear()
-        st.rerun()
+    from toss_manager.session import render_logout_button
+    render_logout_button(key="live_logout")

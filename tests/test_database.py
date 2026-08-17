@@ -23,6 +23,18 @@ class SchemaTests(unittest.TestCase):
         )
         self.assertNotIn("uq_brokerage_provider_account (provider", ddl)
 
+    def test_snapshot_security_and_watchlist_columns_are_declared(self) -> None:
+        ddl = "\n".join(SCHEMA_STATEMENTS).lower()
+        self.assertIn("failed_login_count int not null default 0", ddl)
+        self.assertIn("locked_until datetime(6)", ddl)
+        self.assertIn("email_verified_at datetime(6)", ddl)
+        self.assertIn(
+            "unique key uq_portfolio_account_hash_type "
+            "(account_id, content_hash, snapshot_type)",
+            ddl,
+        )
+        self.assertIn("target_price decimal(30,10), last_price decimal(30,10)", ddl)
+
 
 if __name__ == "__main__":
     unittest.main()

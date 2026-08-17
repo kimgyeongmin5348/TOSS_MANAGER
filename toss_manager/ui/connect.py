@@ -1,6 +1,7 @@
 """Optional Toss real-time API connection."""
 
 import streamlit as st
+import logging
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -8,6 +9,9 @@ from toss_manager.client import TossAPIClient, TossAPIError
 from toss_manager.config import Settings
 from toss_manager.network import get_public_ipv4, is_ip_not_allowed
 from toss_manager.repository import sync_user_and_accounts
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -59,17 +63,22 @@ def _render_realtime_connect_content(engine: Engine, user_id: int, email: str) -
                 if not accounts:
                     st.warning("조회 가능한 계좌가 없습니다.")
                     return
-                synced_user_id = sync_user_and_accounts(
-                    engine, email=email,
-                    display_name=st.session_state.get("display_name"), accounts=accounts,
-                )
-                if synced_user_id != user_id:
-                    raise RuntimeError("로그인 사용자와 계좌 사용자가 일치하지 않습니다.")
+                try:
+                    synced_user_id = sync_user_and_accounts(
+                        engine, email=email,
+                        display_name=st.session_state.get("display_name"), accounts=accounts,
+                    )
+                    if synced_user_id != user_id:
+                        raise RuntimeError("로그인 사용자와 계좌 사용자가 일치하지 않습니다.")
+                except SQLAlchemyError:
+                    LOGGER.exception("Account metadata save failed during Toss connection")
+                    st.session_state.snapshot_save_state = {
+                        "status": "failed", "message": "계좌 DB 저장 실패"
+                    }
                 st.session_state.client = client
                 st.session_state.accounts = accounts
+                st.session_state.snapshot_connect_pending = True
                 st.rerun()
-            except SQLAlchemyError:
-                st.error("계좌 정보를 저장하지 못했습니다.")
             except (TossAPIError, ValueError, KeyError, RuntimeError) as exc:
                 if is_ip_not_allowed(exc):
                     st.error(

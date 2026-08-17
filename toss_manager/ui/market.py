@@ -1,6 +1,8 @@
 """Market ranking and stock chart views."""
 
 import re
+import html
+import logging
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -21,6 +23,10 @@ from toss_manager.repository import (
 from .common import PERIODS, aggregate_candles, currency, percentage, percentage_text
 from .manager import render_manager_launcher
 from .fundamentals import render_fundamentals_launcher
+from .watchlist import render_watchlist_toggle
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 INTRADAY_RAW_COUNTS = {"1분": 200, "5분": 1_000, "10분": 2_000}
@@ -56,19 +62,28 @@ def render_stock_detail(
     last_price = float(price.get("lastPrice") or 0)
     market_name = "미국" if market == "US" else "한국"
     st.markdown(
-        f'<div class="card"><div class="stock-head"><div><h2>{name}</h2>'
-        f'<div class="caption">{symbol} · {market_name}</div></div><div>'
+        f'<div class="card"><div class="stock-head"><div><h2>{html.escape(str(name))}</h2>'
+        f'<div class="caption">{html.escape(str(symbol))} · {market_name}</div></div><div>'
         f'<div class="price">{currency(last_price, market)}</div>'
         '<div class="caption">현재가</div></div></div></div>',
         unsafe_allow_html=True,
     )
+    if "user_id" in st.session_state:
+        render_watchlist_toggle(
+            engine, user_id=int(st.session_state.user_id), symbol=symbol,
+            market=market, name=str(name), last_price=last_price,
+        )
     st.write("")
     try:
         with st.spinner("최근 5년 일봉을 확인하고 저장하고 있습니다..."):
             daily_frame = sync_daily_candles(
                 client, engine, symbol, market, stock_info
             )
-    except (SQLAlchemyError, TossAPIError, ValueError) as exc:
+    except SQLAlchemyError:
+        LOGGER.exception("Daily candle database synchronization failure")
+        st.error("장기 캔들 저장 또는 조회에 실패했습니다.")
+        return
+    except (TossAPIError, ValueError) as exc:
         st.error(f"장기 캔들 동기화 또는 조회에 실패했습니다: {exc}")
         return
 
@@ -337,7 +352,7 @@ def _render_ranking_row(item: dict, stocks: dict, market: str) -> None:
     content, action = st.columns([7, 1])
     content.markdown(
         f'<div class="rank-row"><span class="rank">{item.get("rank", "")}</span>'
-        f'<span><span class="sym">{name}</span><div class="sub">{symbol}</div></span>'
+        f'<span><span class="sym">{html.escape(str(name))}</span><div class="sub">{html.escape(str(symbol))}</div></span>'
         f'<span class="num">{currency(last_price, market)}</span>'
         f'<span class="num rate {tone}">{percentage_text(price.get("changeRate"))}</span>'
         f'<span class="num">{currency(trading_amount, market)}</span></div>',

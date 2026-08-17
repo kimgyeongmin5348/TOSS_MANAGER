@@ -1,6 +1,8 @@
 """Database-only portfolio, holdings navigation, and candle view."""
 
 from hashlib import sha256
+import html
+import logging
 
 import pandas as pd
 import streamlit as st
@@ -20,6 +22,10 @@ from .common import aggregate_candles
 from .formatting import currency, percentage_text
 from .manager import render_manager_launcher
 from .market import RETURN_THRESHOLDS, build_candlestick_figure
+from .watchlist import render_watchlist_toggle
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 OFFLINE_PERIODS = {
@@ -98,7 +104,11 @@ def render_risk_overview(engine: Engine, user_id: int, holdings: pd.DataFrame) -
             rows = load_saved_candles(engine, user_id=user_id, symbol=symbol, interval="1d")
             candle_sets[symbol] = pd.DataFrame(rows)
         profile = analyze_portfolio_risk(holdings, candle_sets)
-    except (SQLAlchemyError, ValueError) as exc:
+    except SQLAlchemyError:
+        LOGGER.exception("Portfolio risk database read failure")
+        st.error("위험도를 계산하기 위한 저장 데이터를 불러오지 못했습니다.")
+        return
+    except ValueError as exc:
         st.error(f"위험도를 계산하지 못했습니다: {exc}")
         return
 
@@ -136,7 +146,7 @@ def render_risk_overview(engine: Engine, user_id: int, holdings: pd.DataFrame) -
               <div><b>{profile.score}</b><small>위험 점수</small></div></div>
             <div class="risk-copy"><small>PORTFOLIO RISK</small><h3 style="color:{accent}">{label}</h3><p>{description}</p></div>
           </div>
-          <div class="risk-ai">✦ {_risk_ai_sentence(profile, holdings, user_id)}</div>
+          <div class="risk-ai">✦ {html.escape(_risk_ai_sentence(profile, holdings, user_id))}</div>
           <div class="risk-row"><span>종목 집중도</span><div class="risk-track"><div class="risk-fill" style="width:{concentration_width:.1f}%;background:#d58a47"></div></div><span class="risk-value">{features.top1_weight_pct:.1f}%</span></div>
           <div class="risk-row"><span>연 변동성</span><div class="risk-track"><div class="risk-fill" style="width:{volatility_width:.1f}%;background:#e06a73"></div></div><span class="risk-value">{volatility_text}</span></div>
           <div class="risk-row"><span>레버리지</span><div class="risk-track"><div class="risk-fill" style="width:{leverage_width:.1f}%;background:#7f77c8"></div></div><span class="risk-value">{features.leveraged_weight_pct:.1f}%</span></div>
@@ -161,7 +171,11 @@ def _render_risk_context(engine: Engine, user_id: int, holdings: pd.DataFrame) -
             rows = load_saved_candles(engine, user_id=user_id, symbol=symbol, interval="1d")
             candle_sets[symbol] = pd.DataFrame(rows)
         profile = analyze_portfolio_risk(holdings, candle_sets)
-    except (SQLAlchemyError, ValueError) as exc:
+    except SQLAlchemyError:
+        LOGGER.exception("Portfolio risk context database read failure")
+        st.error("위험 특성을 계산하기 위한 저장 데이터를 불러오지 못했습니다.")
+        return
+    except ValueError as exc:
         st.error(f"위험 특성을 계산하지 못했습니다: {exc}")
         return
     st.metric("관찰 위험 점수", f"{profile.score} / 100", profile.level)
@@ -217,11 +231,15 @@ def _render_saved_stock(
         st.session_state.pop("offline_symbol", None)
         st.rerun()
     st.markdown(
-        f'<div class="card"><div class="stock-head"><div><h2>{name}</h2>'
-        f'<div class="caption">{symbol} · 저장 데이터</div></div><div>'
+        f'<div class="card"><div class="stock-head"><div><h2>{html.escape(str(name))}</h2>'
+        f'<div class="caption">{html.escape(str(symbol))} · 저장 데이터</div></div><div>'
         f'<div class="price">{currency(float(holding.get("last_price") or 0), market)}</div>'
-        f'<div class="caption">{holding.get("captured_at")} UTC 기준</div></div></div></div>',
+        f'<div class="caption">{html.escape(str(holding.get("captured_at")))} UTC 기준</div></div></div></div>',
         unsafe_allow_html=True,
+    )
+    render_watchlist_toggle(
+        engine, user_id=user_id, symbol=symbol, market=market,
+        name=str(name), last_price=float(holding.get("last_price") or 0),
     )
     try:
         rows = load_saved_candles(engine, user_id=user_id, symbol=symbol, interval="1d")

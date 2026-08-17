@@ -57,6 +57,8 @@ def render_fundamentals_launcher(
 @st.dialog("기업가치·재무제표", width="small")
 def show_fundamentals_dialog(name: str, symbol: str, result: FundamentalResult) -> None:
     safe_name, safe_symbol = escape(name), escape(symbol)
+    safe_provider = escape(str(result.provider))
+    safe_statement = escape(str(result.statement_type))
     roe = "자료 없음" if result.roe_pct is None else f"{result.roe_pct:,.1f}%"
     liability_pct = (result.liabilities / result.assets * 100) if result.liabilities is not None and result.assets else 0
     equity_pct = (result.equity / result.assets * 100) if result.equity is not None and result.assets else 0
@@ -82,7 +84,7 @@ def show_fundamentals_dialog(name: str, symbol: str, result: FundamentalResult) 
     </style>
     <div class="fv-hero">
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="7" y="27" width="12" height="27" rx="3" fill="#f7a4aa"/><rect x="26" y="17" width="12" height="37" rx="3" fill="#ff7e86"/><rect x="45" y="7" width="12" height="47" rx="3" fill="#e75560"/><path d="M10 20 28 10l12 5L55 3" fill="none" stroke="#415170" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div><h3>{safe_name}</h3><p>{safe_symbol} · {result.fiscal_year}년 연간 · {result.provider} · {result.statement_type}</p></div>
+      <div><h3>{safe_name}</h3><p>{safe_symbol} · {result.fiscal_year}년 연간 · {safe_provider} · {safe_statement}</p></div>
     </div>
     <div class="fv-grid">
       <div class="fv-card"><small>PER · 이익 기준</small><b>{_multiple(result.per_ratio)}</b><em>현재 기업가치가 연간 순이익의 몇 배인지</em></div>

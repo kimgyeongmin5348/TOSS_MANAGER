@@ -1,22 +1,34 @@
 """Porto registration and login screen."""
 
 import streamlit as st
+import logging
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from toss_manager.client import TossAPIClient, TossAPIError
-from toss_manager.config import Settings
+from toss_manager.config import MailSettings, Settings
 from toss_manager.network import is_ip_not_allowed
 from toss_manager.repository import (
-    authenticate_user,
     register_user,
     sync_user_and_accounts,
 )
+from toss_manager.accounts import (
+    authenticate_with_limit,
+    create_password_reset,
+    reset_password,
+)
+from toss_manager.mailer import send_account_token
+from toss_manager.session import start_session
 from toss_manager.ui.connect import render_server_ip_guide
 from toss_manager.ui.disclaimer import render_investment_disclaimer
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 def render_auth_view(engine: Engine) -> None:
+    if notice := st.session_state.pop("auth_notice", None):
+        st.success(notice)
     st.markdown('''<div class="auth-brand">
         <div class="auth-brand-left"><span class="mark">P</span>
           <div class="auth-brand-copy"><b>porto</b><small><strong>PORT</strong>folio + <strong>O</strong>rganizer</small></div>
@@ -61,6 +73,9 @@ def render_auth_view(engine: Engine) -> None:
             st.markdown('<div class="auth-divider"><span>처음 방문하셨나요?</span></div>', unsafe_allow_html=True)
             if st.button("새 계정 만들기", use_container_width=True, type="secondary"):
                 signup_dialog(engine)
+            if MailSettings.from_env().configured:
+                if st.button("비밀번호를 잊으셨나요?", use_container_width=True, type="tertiary"):
+                    password_reset_dialog(engine)
             st.markdown('''<div class="auth-safe"><span>✓</span><p><b>안전하게 관리해요</b><br>
             비밀번호는 해시로 저장되며 토스 API 키는 데이터베이스에 저장하지 않습니다.</p></div>''', unsafe_allow_html=True)
             render_investment_disclaimer(compact=True)
@@ -116,23 +131,75 @@ def signup_dialog(engine: Engine) -> None:
     except ValueError as exc:
         st.error(str(exc))
     except SQLAlchemyError:
+        LOGGER.exception("Signup database failure")
         st.error("회원가입 정보를 저장하지 못했습니다.")
 
 
 def _login(engine: Engine, email: str, password: str) -> None:
     try:
-        user = authenticate_user(engine, email, password)
+        result = authenticate_with_limit(engine, email, password)
     except SQLAlchemyError:
+        LOGGER.exception("Login database failure")
         st.error("로그인 정보를 확인하지 못했습니다.")
         return
-    if not user:
+    if result.status == "locked":
+        st.error("로그인 실패가 반복되어 계정이 15분 동안 잠겼습니다.")
+        return
+    if result.status != "success" or not result.user:
         st.error("이메일 또는 비밀번호가 올바르지 않습니다.")
         return
-    _set_session(int(user["user_id"]), user["email"], user["display_name"])
+    user = result.user
+    start_session(
+        user_id=int(user["user_id"]), email=str(user["email"]),
+        display_name=user["display_name"], session_version=int(user["session_version"]),
+        email_verified=bool(user["email_verified"]),
+    )
     st.rerun()
 
 
 def _set_session(user_id: int, email: str, display_name: str | None) -> None:
-    st.session_state.user_id = user_id
-    st.session_state.user_email = email
-    st.session_state.display_name = display_name
+    start_session(
+        user_id=user_id, email=email, display_name=display_name,
+        session_version=1, email_verified=False,
+    )
+
+
+@st.dialog("비밀번호 재설정")
+def password_reset_dialog(engine: Engine) -> None:
+    st.caption("가입한 이메일로 30분 동안 유효한 재설정 코드를 보냅니다.")
+    with st.form("request_password_reset"):
+        request_email = st.text_input("이메일", key="reset_request_email")
+        request = st.form_submit_button("재설정 코드 보내기", use_container_width=True)
+    if request:
+        try:
+            created = create_password_reset(engine, email=request_email)
+            if created:
+                _, recipient, token = created
+                send_account_token(recipient=recipient, token=token, purpose="reset")
+            st.success("가입된 이메일이라면 재설정 코드를 보냈습니다.")
+        except (SQLAlchemyError, OSError):
+            LOGGER.exception("Password reset delivery failure")
+            # Do not expose whether the email exists or which internal service failed.
+            st.success("가입된 이메일이라면 재설정 코드를 보냈습니다.")
+
+    with st.form("complete_password_reset"):
+        email = st.text_input("이메일", key="reset_email")
+        token = st.text_input("재설정 코드")
+        password = st.text_input("새 비밀번호 (8자 이상)", type="password")
+        confirmation = st.text_input("새 비밀번호 확인", type="password")
+        submitted = st.form_submit_button("새 비밀번호 저장", use_container_width=True)
+    if not submitted:
+        return
+    if password != confirmation:
+        st.error("새 비밀번호 확인이 일치하지 않습니다.")
+        return
+    try:
+        if reset_password(engine, email=email, token=token, password=password):
+            st.success("비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요.")
+        else:
+            st.error("재설정 코드가 올바르지 않거나 만료되었습니다.")
+    except ValueError as exc:
+        st.error(str(exc))
+    except SQLAlchemyError:
+        LOGGER.exception("Password reset database failure")
+        st.error("비밀번호를 재설정하지 못했습니다. 잠시 후 다시 시도해 주세요.")
